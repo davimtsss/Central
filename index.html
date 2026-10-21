@@ -242,7 +242,36 @@ function parseMoney(x){let t=String(x==null?'':x).trim();if(!t)return 0;if(t.inc
 function moneyMask(el){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'');el.value=d?(parseInt(d,10)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';}
 function withTimeout(p,ms){return Promise.race([Promise.resolve(p),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);}
 function toastErr(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),5000);}
-async function upsertSafe(table,row){let r=Object.assign({},row);for(let i=0;i<5;i++){let res;try{res=await withTimeout(sb.from(table).upsert(r),8000);}catch(e){res={error:e};}if(!res||!res.error)return res;const msg=(res.error&&res.error.message)||'';const m=/'([^']+)' column/.exec(msg);if(m&&(m[1] in r)){delete r[m[1]];console.warn('salvando sem a coluna',m[1]);continue;}throw res.error;}throw new Error('não consegui salvar');}
+// ===== gravação/leitura direto na API REST (sem depender da fila interna do supabase-js) =====
+const SB_LS='sb-dbvykrqtfakhylndrtdn-auth-token';
+function tokLocal(){try{const j=JSON.parse(localStorage.getItem(SB_LS)||'null');if(j&&j.access_token)return j;}catch(_){}return null;}
+async function refreshTok(){try{const r=await withTimeout(sb.auth.refreshSession(),6000);if(r&&r.data&&r.data.session)return r.data.session.access_token;}catch(_){}try{const r=await withTimeout(sb.auth.getSession(),4000);if(r&&r.data&&r.data.session)return r.data.session.access_token;}catch(_){}const j=tokLocal();return j?j.access_token:null;}
+async function authToken(){const j=tokLocal();if(j&&j.expires_at&&(j.expires_at*1000-Date.now())>90000)return j.access_token;return await refreshTok();}
+async function restCall(method,table,body,query,prefer){let row=body?Object.assign({},body):null;let last=null;
+  for(let i=0;i<4;i++){
+    const tok=await authToken();if(!tok)throw new Error('login expirou — recarrega a página');
+    const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),8000);
+    try{
+      const r=await fetch(SB_URL+'/rest/v1/'+table+(query?'?'+query:''),{method,signal:ctl.signal,cache:'no-store',
+        headers:Object.assign({apikey:SB_KEY,Authorization:'Bearer '+tok,'Content-Type':'application/json'},prefer?{Prefer:prefer}:{}),
+        body:row?JSON.stringify(row):undefined});
+      clearTimeout(tm);
+      if(r.ok)return method==='GET'?await r.json():true;
+      let j={};try{j=await r.json();}catch(_){}
+      const msg=j.message||('HTTP '+r.status);
+      const m=/'([^']+)' column/.exec(msg);
+      if(j.code==='PGRST204'&&m&&row&&(m[1] in row)){delete row[m[1]];console.warn('salvando sem a coluna',m[1]);continue;}
+      if(r.status===401||j.code==='PGRST301'||j.code==='PGRST303'){await refreshTok();last=new Error('login expirou');continue;}
+      throw new Error(msg);
+    }catch(e){clearTimeout(tm);if(e&&e.name==='AbortError')last=new Error('sem resposta do servidor');else if(e instanceof TypeError)last=new Error('sem internet');else throw e;}
+    await new Promise(r=>setTimeout(r,400*(i+1)));
+  }
+  throw last||new Error('não consegui salvar');}
+async function restRead(table){return restCall('GET',table,null,'select=*');}
+async function restWrite(method,table,body,query){return restCall(method,table,body,query,method==='POST'?'resolution=merge-duplicates,return=minimal':'return=minimal');}
+async function upsertSafe(table,row){return restWrite('POST',table,row);}
+let SAVING=false;
+async function guarded(fn){if(SAVING)return;SAVING=true;const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await fn();}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
 function brl(n){return 'R$ '+(Math.round(Number(n))||0).toLocaleString('pt-BR');}
@@ -264,20 +293,18 @@ const SB_URL='https://dbvykrqtfakhylndrtdn.supabase.co';
 const SB_KEY='sb_publishable_3PpYrWZ4Eb9SW7635PhF6w_F_XfR4dC';
 let sb=null,cliCb=null,fluCb=null,authedOnce=false;
 async function loadClientes(){
-  const {data,error}=await sb.from('clientes').select('*');
-  if(error){console.warn(error);return;}
+  let data;try{data=await restRead('clientes');}catch(e){console.warn(e);return;}
   const docs=(data||[]).map(r=>{const o={...r};delete o.id;return {id:r.id,data:()=>o};});
   if(cliCb)cliCb({docs});
 }
 async function loadFluxo(){
-  const {data,error}=await sb.from('fluxo').select('*');
-  if(error){console.warn(error);return;}
+  let data;try{data=await restRead('fluxo');}catch(e){console.warn(e);return;}
   const items=(data||[]).map(r=>({id:r.id,data:r.data,mes:r.mes,tipo:r.tipo,emp:r.emp,cat:r.cat,desc:r.descricao,valor:Number(r.valor)||0,forma:r.forma,classe:r.classe||'',fim:!!r.fim,pg:r.pg||0,tt:r.tt||0,emp2:r.emp2||'',ppri:(r.ppri!=null?r.ppri:50),conta:r.conta||''}));
   if(fluCb)fluCb({data:()=>({items})});
 }
 async function loadCustos(){
   if(!sb)return;
-  try{const {data,error}=await sb.from('custos').select('*');if(error)throw error;
+  try{const data=await restRead('custos');
   CUSTOS=(data||[]).map(r=>({...r,valor:Number(r.valor)||0,pg:+r.pg||0,tt:+r.tt||0,venc:(r.venc!=null?+r.venc:null),ppri:(r.ppri!=null?+r.ppri:50),fim:!!r.fim}));
   }catch(e){console.warn('custos',e);}
   custoLoaded=true;
@@ -287,11 +314,11 @@ function makeDB(){return{
   collection(name){return{
     onSnapshot(cb,err){cliCb=cb;loadClientes();},
     doc(id){return{
-      async update(obj){await sbw(()=>sb.from('clientes').update(obj).eq('id',id));await loadClientes();},
-      async set(obj){await sbw(()=>sb.from('clientes').update(obj).eq('id',id));await loadClientes();},
-      async delete(){await sbw(()=>sb.from('clientes').delete().eq('id',id));await loadClientes();}
+      async update(obj){await restWrite('PATCH','clientes',obj,'id=eq.'+encodeURIComponent(id));await loadClientes();},
+      async set(obj){await restWrite('PATCH','clientes',obj,'id=eq.'+encodeURIComponent(id));await loadClientes();},
+      async delete(){await restWrite('DELETE','clientes',null,'id=eq.'+encodeURIComponent(id));await loadClientes();}
     };},
-    async add(obj){const id='c'+Date.now();await sbw(()=>sb.from('clientes').insert({id,...obj}));await loadClientes();}
+    async add(obj){const id='c'+Date.now();await restWrite('POST','clientes',{id,...obj});await loadClientes();}
   };},
   doc(path){return{onSnapshot(cb,err){fluCb=cb;loadFluxo();},async set(obj){}};}
 };}
@@ -383,11 +410,11 @@ function renderAsaasPanel(){
   document.getElementById('content').innerHTML=chips+body;
 }
 /* ===== TAREFAS (dia a dia) ===== */
-async function loadTarefas(){if(!sb)return;try{const{data,error}=await sb.from('tarefas').select('*');if(error)throw error;TAREFAS=(data||[]);}catch(e){console.warn('tarefas',e);}tarLoaded=true;if(tab==='overview')renderActive();}
-async function addTarefa(){const el=document.getElementById('tar-in');const t=(el.value||'').trim();if(!t)return;const row={id:'t'+Date.now(),texto:t,feito:false,criado:new Date().toISOString()};try{await sbw(()=>sb.from('tarefas').insert(row));el.value='';await loadTarefas();}catch(e){writeErr(e);}}
-async function toggleTarefa(id){const t=TAREFAS.find(x=>x.id===id);if(!t)return;try{await sbw(()=>sb.from('tarefas').update({feito:!t.feito,feito_em:(!t.feito?new Date().toISOString():null)}).eq('id',id));await loadTarefas();}catch(e){writeErr(e);}}
-async function delTarefa(id){try{await sbw(()=>sb.from('tarefas').delete().eq('id',id));await loadTarefas();}catch(e){writeErr(e);}}
-async function limparFeitas(){const ids=TAREFAS.filter(t=>t.feito).map(t=>t.id);if(!ids.length)return;try{await sbw(()=>sb.from('tarefas').delete().in('id',ids));await loadTarefas();}catch(e){writeErr(e);}}
+async function loadTarefas(){if(!sb)return;try{const data=await restRead('tarefas');TAREFAS=(data||[]);}catch(e){console.warn('tarefas',e);}tarLoaded=true;if(tab==='overview')renderActive();}
+async function addTarefa(){const el=document.getElementById('tar-in');const t=(el.value||'').trim();if(!t)return;const row={id:'t'+Date.now(),texto:t,feito:false,criado:new Date().toISOString()};try{await restWrite('POST','tarefas',row);el.value='';await loadTarefas();}catch(e){writeErr(e);}}
+async function toggleTarefa(id){const t=TAREFAS.find(x=>x.id===id);if(!t)return;try{await restWrite('PATCH','tarefas',{feito:!t.feito,feito_em:(!t.feito?new Date().toISOString():null)},'id=eq.'+encodeURIComponent(id));await loadTarefas();}catch(e){writeErr(e);}}
+async function delTarefa(id){try{await restWrite('DELETE','tarefas',null,'id=eq.'+encodeURIComponent(id));await loadTarefas();}catch(e){writeErr(e);}}
+async function limparFeitas(){const ids=TAREFAS.filter(t=>t.feito).map(t=>t.id);if(!ids.length)return;try{await restWrite('DELETE','tarefas',null,'id=in.('+ids.map(encodeURIComponent).join(',')+')');await loadTarefas();}catch(e){writeErr(e);}}
 function tarefasHtml(){const ab=TAREFAS.filter(t=>!t.feito).sort((a,b)=>(a.criado||'').localeCompare(b.criado||''));const fe=TAREFAS.filter(t=>t.feito).sort((a,b)=>(b.feito_em||'').localeCompare(a.feito_em||''));const row=t=>'<div class="tar'+(t.feito?' done':'')+'"><label><input type="checkbox" '+(t.feito?'checked':'')+' onchange="toggleTarefa(\''+t.id+'\')"><span>'+esc(t.texto)+'</span></label><button class="tar-x" onclick="delTarefa(\''+t.id+'\')" title="apagar">×</button></div>';
   return '<div class="panel" style="margin-top:14px"><div class="ph">✅ Tarefas do dia a dia'+(ab.length?' · '+ab.length+' abertas':'')+'</div><div class="tar-add"><input class="fi" id="tar-in" placeholder="Nova tarefa… (Enter pra adicionar)" onkeydown="if(event.key===\'Enter\')addTarefa()"><button class="save" onclick="addTarefa()">Adicionar</button></div>'+(ab.length?ab.map(row).join(''):'<div class="tc-ok" style="padding:8px 0">Nada pendente ✓</div>')+(fe.length?'<div class="tar-sep">Concluídas · <a href="#" onclick="limparFeitas();return false">limpar</a></div>'+fe.slice(0,8).map(row).join(''):'')+'</div>';}
 /* FLUXO */
@@ -422,7 +449,7 @@ function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,today=new Date().getD
 function custoEmpresa(list){const e={};list.forEach(c=>{const v=+c.valor||0;if(c.emp2&&c.emp2!=='Não'&&c.emp2!==''&&c.emp2!==c.emp){const p=(c.ppri!=null?+c.ppri:50)/100;e[c.emp||'—']=(e[c.emp||'—']||0)+v*p;e[c.emp2]=(e[c.emp2]||0)+v*(1-p);}else{const k=c.emp||'—';e[k]=(e[k]||0)+v;}});return e;}
 function statusCusto(c){if(c.mespg===ymNow())return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
-async function setCustoStatus(id,val){const c=CUSTOS.find(x=>x.id===id);if(!c)return;if(val==='Atrasado')return;try{if(val==='Pago'){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);await sbw(()=>sb.from('custos').update({status:'Pago',mespg:ymNow(),pg:pg}).eq('id',id));toast('Pago'+(tt>0?' '+pg+'/'+tt:''));}else{await sbw(()=>sb.from('custos').update({status:val,mespg:null}).eq('id',id));toast(val);}await loadCustos();}catch(e){toast('Erro ao salvar');}}
+async function setCustoStatus(id,val){const c=CUSTOS.find(x=>x.id===id);if(!c)return;if(val==='Atrasado')return;try{if(val==='Pago'){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);await restWrite('PATCH','custos',{status:'Pago',mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(id));toast('Pago'+(tt>0?' '+pg+'/'+tt:''));}else{await restWrite('PATCH','custos',{status:val,mespg:null},'id=eq.'+encodeURIComponent(id));toast(val);}await loadCustos();}catch(e){toast('Erro ao salvar');}}
 function custoRow(c){
   const pc=(+c.tt>0)?((+c.pg||0)+'/'+(+c.tt)):'—';
   const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');
@@ -497,7 +524,8 @@ function openCustoForm(id){
     (id&&!c.fim?'<button class="ab pri" style="width:100%;margin-top:8px;border-radius:11px;padding:12px" onclick="pagouCusto(\''+id+'\')">✓ Paguei este mês</button>':'');
   document.getElementById('ov').classList.add('open');
 }
-async function saveCusto(){
+async function saveCusto(){return guarded(_saveCusto);}
+async function _saveCusto(){
   if(!sb){toast('Faça login');return;}
   const g=n=>document.getElementById('k-'+n).value.trim();
   const old=custEditId?CUSTOS.find(x=>x.id===custEditId):null;const E=readEmp('k');
@@ -505,9 +533,9 @@ async function saveCusto(){
   if(!row.fornecedor&&!row.descricao){toast('Põe fornecedor ou descrição');return;}
   try{await upsertSafe('custos',row);toast(custEditId?'Salvo ✓':'Custo adicionado ✓');closeOv();await loadCustos();}catch(e){console.warn('saveCusto',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
-async function delCusto(id){try{await sbw(()=>sb.from('custos').delete().eq('id',id));toast('Excluído');closeOv();await loadCustos();}catch(e){writeErr(e);}}
-async function toggleCustoFim(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{await sbw(()=>sb.from('custos').update({fim:!c.fim}).eq('id',id));toast(c.fim?'Reativado':'Encerrado ✓');closeOv();await loadCustos();}catch(e){writeErr(e);}}
-async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;const tt=+c.tt||0,pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);try{await sbw(()=>sb.from('custos').update({mespg:ymNow(),pg:pg}).eq('id',id));toast('Pago! '+(tt>0?pg+'/'+tt:''));closeOv();await loadCustos();}catch(e){writeErr(e);}}
+async function delCusto(id){try{await restWrite('DELETE','custos',null,'id=eq.'+encodeURIComponent(id));toast('Excluído');closeOv();await loadCustos();}catch(e){writeErr(e);}}
+async function toggleCustoFim(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{await restWrite('PATCH','custos',{fim:!c.fim},'id=eq.'+encodeURIComponent(id));toast(c.fim?'Reativado':'Encerrado ✓');closeOv();await loadCustos();}catch(e){writeErr(e);}}
+async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;const tt=+c.tt||0,pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);try{await restWrite('PATCH','custos',{mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(id));toast('Pago! '+(tt>0?pg+'/'+tt:''));closeOv();await loadCustos();}catch(e){writeErr(e);}}
 /* FLUXO form */
 /* empresa + rateio (fluxo e custos) */
 const COMBO='OnPro e ADmídia';
@@ -533,7 +561,8 @@ function openFluxoForm(id){
     '<div class="mbtns">'+(id&&CANW?'<button class="del-confirm" style="flex:.5" onclick="delFluxo(\''+id+'\')">Excluir</button>':'')+(id?'<button class="cancel" style="flex:.85" onclick="toggleFim(\''+id+'\')">'+(t.fim?'↩ Reativar':'✓ Acabou')+'</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveFluxo()">Salvar</button></div>';
   document.getElementById('ov').classList.add('open');
 }
-async function saveFluxo(){
+async function saveFluxo(){return guarded(_saveFluxo);}
+async function _saveFluxo(){
   if(!sb){toast('Faça login');return;}
   const g=n=>document.getElementById('x-'+n).value.trim();
   const iso=g('data');const data=isoToDmy(iso);
@@ -543,12 +572,12 @@ async function saveFluxo(){
   const row={id:it.id,data:it.data,mes:it.mes,tipo:it.tipo,emp:it.emp,cat:it.cat,descricao:it.desc,valor:it.valor,forma:it.forma,conta:it.conta||'',classe:it.classe,pg:it.pg,tt:it.tt,fim:it.fim,emp2:it.emp2,ppri:it.ppri};
   try{await upsertSafe('fluxo',row);toast(fEditId?'Salvo ✓':'Lançamento adicionado ✓');closeOv();await loadFluxo();}catch(e){console.warn('saveFluxo',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
-async function toggleFim(id){const t=FLUXO.find(x=>x.id===id);if(!t)return;try{await sbw(()=>sb.from('fluxo').update({fim:!t.fim}).eq('id',id));toast(t.fim?'Reativado':'Finalizado ✓');closeOv();await loadFluxo();}catch(e){writeErr(e);}}
-async function delFluxo(id){try{await sbw(()=>sb.from('fluxo').delete().eq('id',id));toast('Excluído');closeOv();await loadFluxo();}catch(e){writeErr(e);}}
+async function toggleFim(id){const t=FLUXO.find(x=>x.id===id);if(!t)return;try{await restWrite('PATCH','fluxo',{fim:!t.fim},'id=eq.'+encodeURIComponent(id));toast(t.fim?'Reativado':'Finalizado ✓');closeOv();await loadFluxo();}catch(e){writeErr(e);}}
+async function delFluxo(id){try{await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(id));toast('Excluído');closeOv();await loadFluxo();}catch(e){writeErr(e);}}
 
 /* DRE */
 /* ===== SÓCIOS (D/M) ===== */
-async function loadDM(){if(!sb)return;try{const{data,error}=await sb.from('dm').select('*');if(error)throw error;DMD=(data||[]).map(r=>({...r,valor:Number(r.valor)||0}));}catch(e){console.warn('dm',e);}dmLoaded=true;if(tab==='dm')renderActive();}
+async function loadDM(){if(!sb)return;try{const data=await restRead('dm');DMD=(data||[]).map(r=>({...r,valor:Number(r.valor)||0}));}catch(e){console.warn('dm',e);}dmLoaded=true;if(tab==='dm')renderActive();}
 function setDMPer(m){dmPer=m;renderDM();}
 function renderDM(){
   if(sb&&!dmLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
@@ -575,7 +604,8 @@ function openDMForm(id){
     '<div class="mbtns">'+(id?'<button class="del-confirm" style="flex:.6" onclick="delDM(\''+id+'\')">Excluir</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveDM()">Salvar</button></div>';
   document.getElementById('ov').classList.add('open');
 }
-async function saveDM(){
+async function saveDM(){return guarded(_saveDM);}
+async function _saveDM(){
   if(!sb){toast('Faça login');return;}
   const g=n=>document.getElementById('d-'+n).value.trim();
   const iso=g('data');const data=isoToDmy(iso)||new Date().toLocaleDateString('pt-BR');
@@ -584,7 +614,7 @@ async function saveDM(){
   if(!row.valor){toast('Põe o valor');return;}
   try{await upsertSafe('dm',row);toast(dmEditId?'Salvo ✓':'Lançado ✓');closeOv();await loadDM();}catch(e){console.warn('saveDM',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
-async function delDM(id){try{await sbw(()=>sb.from('dm').delete().eq('id',id));toast('Excluído');closeOv();await loadDM();}catch(e){writeErr(e);}}
+async function delDM(id){try{await restWrite('DELETE','dm',null,'id=eq.'+encodeURIComponent(id));toast('Excluído');closeOv();await loadDM();}catch(e){writeErr(e);}}
 function renderDRE(){
   const L=[['RECEITA BRUTA','R$ 55.000','sec'],['OnPro — assinaturas','R$ 25.000','sub'],['ADmídia — anúncio/indoor','R$ 20.000','sub'],['ADled — painéis','R$ 10.000','sub'],['(−) Custos diretos','(R$ 11.550)','sec'],['(−) Despesas operacionais','(R$ 18.950)','sec'],['(−) Impostos (Simples)','(R$ 1.500)','sec'],['= RESULTADO LÍQUIDO','R$ 23.000','tot']];
   document.getElementById('content').innerHTML='<div class="panel dre"><div class="ph">DRE gerencial · run-rate mensal</div>'+L.map(l=>'<div class="ln '+l[2]+'"><span class="'+(l[2]==='sub'?'sub':'')+'">'+l[0]+'</span><span>'+l[1]+'</span></div>').join('')+'<div class="note">Faturamento R$ 55k · custo R$ 32k · lucro R$ 23k (margem 42%). Consolidado das 3 frentes, base caixa.</div></div>';
@@ -631,7 +661,8 @@ function openForm(id){editId=id||null;const c=id?CLIENTES.find(x=>x.id===id):{};
   document.getElementById('modal').innerHTML='<h3>'+(id?'Editar cliente':'Novo cliente')+'</h3><div class="flg">Empresa / cliente</div><input class="fi" id="f-empresa" value="'+esc(c.empresa||'')+'" placeholder="Ex: Barbearia do João"><div class="ff"><div><div class="flg">Situação</div>'+sel('status',STATUSES,c.status||'Em aberto')+'</div><div><div class="flg">Tipo</div>'+sel('tipo',TIPOS,c.tipo||'Anúncio')+'</div></div><div class="ff"><div><div class="flg">Valor mensal (R$)</div><input class="fi" id="f-valor" type="text" inputmode="decimal" placeholder="0,00" oninput="moneyMask(this)" value="'+fmtMoney(c.valor)+'"></div><div><div class="flg">Dia vencimento</div><input class="fi" id="f-venc" type="number" min="1" max="31" value="'+esc(c.venc||'')+'"></div></div><div class="ff"><div><div class="flg">Parcelas pagas</div><input class="fi" id="f-pg" type="number" value="'+(c.pg!=null?c.pg:'')+'"></div><div><div class="flg">Total parcelas</div><input class="fi" id="f-tt" type="number" value="'+(c.tt!=null?c.tt:'')+'"></div></div><div class="ff"><div><div class="flg">Cidade</div><input class="fi" id="f-cidade" value="'+esc(c.cidade||'')+'"></div><div><div class="flg">Segmento</div><input class="fi" id="f-seg" value="'+esc(c.seg||'')+'"></div></div><div class="ff"><div><div class="flg">Forma de pagamento</div>'+sel('forma',FORMAS,c.forma||'Boleto')+'</div><div><div class="flg">Tempo de contrato</div><input class="fi" id="f-contrato" value="'+esc(c.contrato||'')+'" placeholder="12 meses"></div></div><div class="flg">WhatsApp (DDD + número)</div><input class="fi" id="f-wpp" value="'+esc(c.wpp||'')+'" placeholder="48999999999"><div class="mbtns"><button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveForm()">Salvar</button></div>';
   document.getElementById('ov').classList.add('open');
 }
-async function saveForm(){const g=n=>document.getElementById('f-'+n).value.trim();const obj={empresa:g('empresa'),status:g('status'),tipo:g('tipo'),valor:parseMoney(g('valor')),venc:g('venc'),pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,cidade:g('cidade'),seg:g('seg'),wpp:g('wpp'),forma:g('forma'),contrato:g('contrato')};if(!obj.empresa){toast('Põe o nome');return;}try{if(editId){await DB.collection('clientes').doc(editId).set(obj);toast('Salvo');}else{await DB.collection('clientes').add(obj);toast('Adicionado');}closeOv();}catch(e){writeErr(e);}}
+async function saveForm(){return guarded(_saveForm);}
+async function _saveForm(){const g=n=>document.getElementById('f-'+n).value.trim();const obj={empresa:g('empresa'),status:g('status'),tipo:g('tipo'),valor:parseMoney(g('valor')),venc:g('venc'),pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,cidade:g('cidade'),seg:g('seg'),wpp:g('wpp'),forma:g('forma'),contrato:g('contrato')};if(!obj.empresa){toast('Põe o nome');return;}try{if(editId){await DB.collection('clientes').doc(editId).set(obj);toast('Salvo');}else{await DB.collection('clientes').add(obj);toast('Adicionado');}closeOv();}catch(e){writeErr(e);}}
 function askDel(id){const c=CLIENTES.find(x=>x.id===id);editId=id;document.getElementById('modal').innerHTML='<h3>Excluir?</h3><p style="color:var(--muted)">Apagar <b>'+esc(c.empresa)+'</b>?</p><div class="mbtns"><button class="cancel" onclick="closeOv()">Cancelar</button><button class="del-confirm" onclick="doDel()">Excluir</button></div>';document.getElementById('ov').classList.add('open');}
 async function doDel(){try{await DB.collection('clientes').doc(editId).delete();toast('Excluído');closeOv();}catch(e){writeErr(e);}}
 function closeOv(){document.getElementById('ov').classList.remove('open');editId=null;detailId=null;fEditId=null;}
