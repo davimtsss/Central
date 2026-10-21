@@ -93,7 +93,7 @@ h1,h2,h3{margin:0;font-weight:700}
 .cl-meta{font-size:12px;color:var(--muted);margin-top:5px;display:flex;flex-wrap:wrap;gap:3px 12px}
 .cl-meta b{font-weight:700;color:var(--ink)}.cl-meta .rd{color:var(--red);font-weight:600}
 .stsel{font-family:var(--f);font-weight:600;font-size:12.5px;padding:8px 9px;border-radius:8px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer;outline:none;width:100%}
-.stsel.s-pago{border-color:var(--green);color:var(--green)}.stsel.s-naopago,.stsel.s-urgente{border-color:var(--red);color:var(--red)}.stsel.s-permuta{border-color:#9a7fd6;color:#9a7fd6}
+.stsel.s-pago{border-color:var(--green);color:var(--green)}.stsel.s-naopago,.stsel.s-urgente{border-color:var(--red);color:var(--red)}.stsel.s-permuta{border-color:#9a7fd6;color:#9a7fd6}.stsel.s-cancelado{border-color:#b0b7c0;color:#8a939d;text-decoration:line-through}
 @media(max-width:560px){.crow{grid-template-columns:1fr 120px}}
 .ctabs{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:12px;border-bottom:1px solid var(--line)}
 .ct{font-weight:600;font-size:12.5px;padding:8px 11px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -221,14 +221,14 @@ html,body{overflow-x:hidden;max-width:100%}
 const MES={'01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez'};
 let MESES=[];
 const TABS=[['overview','Visão geral'],['clientes','Cobranças'],['fluxo','Fluxo de caixa'],['custos','Custos'],['dm','Sócios'],['dre','DRE']];
-const STATUSES=['Pago','Em aberto','Não pago','Urgente','Permuta'];
+const STATUSES=['Pago','Em aberto','Não pago','Urgente','Permuta','Cancelado'];
 const TIPOS=['Anúncio','Corporativo','Híbrido','Venda led','Permuta'];
 const FORMAS=['Pix','Cartão','Boleto','Dinheiro'];
 const CLASSES=['Fixo','Variável','Salário','Investimento'];
 const CLCOL={fixo:'#4a7fb5',variavel:'#d99a4e',salario:'#8a6bb5',investimento:'#5aa06f'};
 const FRENTES=['OnPro','ADmídia','ADled','ADview'];
 const CATS=['Mensalidade/Assinatura','Anúncio','Venda LED','Corporativo','Compra de painel','Salário/Folha','Serviço terceirizado','Aluguel/Locação','Combustível','Equipamento','Sistema','Marketing/Tráfego','Café/Lazer','Correio/Frete','Impostos','Influenciador','Outros'];
-const LABEL={pago:'Pago',emaberto:'Em aberto',naopago:'Não pago',urgente:'Urgente',permuta:'Permuta'};
+const LABEL={pago:'Pago',emaberto:'Em aberto',naopago:'Não pago',urgente:'Urgente',permuta:'Permuta',cancelado:'Cancelado'};
 const SCOL={pago:'var(--green)',emaberto:'#9aa3b5',naopago:'var(--red)',urgente:'#9c1f1f',permuta:'#9a7fd6'};
 const PAL=['#4a7fb5','#d99a4e','#cf5a5a','#5aa06f','#8a6bb5','#7a8595','#d6b84a','#5bb0c0','#b56a8a','#a0a8b6'];
 let tab='overview',mesF='todos',cfiltro='todos',fTipo='todos',cClasse='todos';
@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1614';
+const BUILD='1021-1618';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -388,7 +388,7 @@ function goCobrar(){cfiltro='atrasados';go('clientes');}
 function renderOverview(){
   if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
-  const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago'].includes(sk(c.status))).map(c=>({c,late:Math.max(0,ymDiff(c.mespg,ymNow())),urg:['naopago','urgente'].includes(sk(c.status))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
+  const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago','cancelado'].includes(sk(c.status))).map(c=>({c,late:Math.max(0,ymDiff(c.mespg,ymNow())),urg:['naopago','urgente'].includes(sk(c.status))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
   const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago').map(c=>{const v=+c.venc;let k=9,lbl='';if(v<td){k=0;lbl='atrasada '+(td-v)+'d';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
   let maxD=null;FLUXO.forEach(t=>{const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(!maxD||d>maxD)maxD=d;}});
   const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>2);
@@ -709,8 +709,8 @@ function renderDRE(){
 }
 
 /* CLIENTES */
-function cmatch(c){const s=sk(c.status);if(cfiltro==='todos')return !isLed(c)&&s!=='permuta';if(cfiltro==='atrasados')return s==='naopago'||s==='urgente';if(cfiltro==='emaberto')return s==='emaberto';if(cfiltro==='pago')return s==='pago';if(cfiltro==='permuta')return s==='permuta';if(cfiltro==='led')return isLed(c);return true;}
-const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['onpro','OnPro']];
+function cmatch(c){const s=sk(c.status);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return !isLed(c)&&s!=='permuta';if(cfiltro==='atrasados')return s==='naopago'||s==='urgente';if(cfiltro==='emaberto')return s==='emaberto';if(cfiltro==='pago')return s==='pago';if(cfiltro==='permuta')return s==='permuta';if(cfiltro==='led')return isLed(c);return true;}
+const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['onpro','OnPro'],['cancelados','Cancelados']];
 function setCF(f){cfiltro=f;renderClientes();}
 function crow(c){
   const s=sk(c.status),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,atr=(s==='naopago'||s==='urgente');
