@@ -122,8 +122,9 @@ h1,h2,h3{margin:0;font-weight:700}
 .save{background:var(--accent);color:#fff}.cancel{background:var(--bg);color:var(--muted);border:1.5px solid var(--line)!important}.del-confirm{background:var(--red);color:#fff}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:999px;font-weight:500;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
-.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
-@media(max-width:820px){.tgrid{grid-template-columns:1fr}}
+.tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+@media(max-width:1100px){.tgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.tgrid{grid-template-columns:1fr}}
 .tcard{cursor:pointer;border-left:4px solid var(--line)}
 .tcard.warn{border-left-color:var(--red)}.tcard.ok{border-left-color:var(--green)}
 .tcard:hover{background:var(--bg)}
@@ -194,6 +195,7 @@ let tab='overview',mesF='todos',cfiltro='todos',fTipo='todos',cClasse='todos';
 let DB=null,USER=null,CANW=true,CLIENTES=[],cloaded=false,FLUXO=[],floaded=false,detailId=null,editId=null,fEditId=null;
 let CUSTOS=[],custoLoaded=false,custEditId=null,cPeriodo='';
 let DMD=[],dmLoaded=false,dmEditId=null,dmPer='';const LIMITE_SOCIO=4000;const SOCIOS=['Davi','Matheus'];
+let ASAAS=null,asaasLoaded=false,asaasErr='';
 function withTimeout(p,ms){return Promise.race([Promise.resolve(p),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
@@ -262,6 +264,7 @@ function onAuthed(){
   DB.doc('fluxo/data').onSnapshot(s=>{const dt=s.data();FLUXO=(dt&&dt.items)||[];floaded=true;refreshMeses();if(['overview','fluxo','custos'].includes(tab))renderActive();},e=>{});
   loadCustos();
   loadDM();
+  loadAsaas();
   renderActive();
 }
 function showLogin(){document.getElementById('login').classList.add('show');}
@@ -305,9 +308,23 @@ function renderOverview(){
   const c2=card(pagar.length?'warn':'ok','💸','Contas a pagar',pagar.length,pagar.map(x=>[esc(x.c.fornecedor||x.c.descricao)+' · '+brl(x.c.valor),x.lbl]),"go('custos')",'Nada vencendo ✓');
   const c3=lancar?card('warn','📝','Lançar no fluxo',(diasSem===null?'!':diasSem+'d'),[[diasSem===null?'Nenhum lançamento ainda':'Faz '+diasSem+' dias sem lançar','lança aí →']],"go('fluxo')",''):card('ok','📝','Fluxo de caixa','✓',[],"go('fluxo')",'Lançamentos em dia ✓');
   const kpis='<div class="kpis" style="margin-top:14px"><div class="kc g"><div class="l">Entradas · '+(MES[mm]||mm)+'</div><div class="n">'+brlk(ent)+'</div></div><div class="kc r"><div class="l">Saídas · '+(MES[mm]||mm)+'</div><div class="n">'+brlk(sai)+'</div></div><div class="kc b"><div class="l">Saldo</div><div class="n">'+brlk(ent-sai)+'</div></div><div class="kc"><div class="l">A receber</div><div class="n">'+brlk(aRec)+'</div><div class="s">clientes em aberto</div></div></div>';
-  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c3+'</div>'+kpis;
+  const c4=!asaasLoaded?card('','🟠','OnPro · Asaas','…',[],'goOnPro()','Carregando…'):(asaasErr?card('','🟠','OnPro · Asaas','!',[['Asaas ainda não conectado','configurar →']],'goOnPro()',''):card(ASAAS.n_atrasado?'warn':'ok','🟠','OnPro · Asaas',ASAAS.n_atrasado,(ASAAS.atrasados||[]).map(a=>[esc(a.nome),brl(a.valor)]),'goOnPro()','Nenhum atraso na OnPro ✓'));
+  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c3+c4+'</div>'+kpis;
 }
 
+/* ===== ASAAS (OnPro) ===== */
+function goOnPro(){cfiltro='onpro';go('clientes');}
+async function loadAsaas(){if(!sb)return;try{const {data,error}=await sb.functions.invoke('asaas');if(error)throw error;if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
+function renderAsaasPanel(){
+  const chips='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
+  let body;
+  if(!asaasLoaded)body='<div class="state">Carregando Asaas…</div>';
+  else if(asaasErr)body='<div class="note">🟠 <b>Asaas ainda não conectado.</b> Falta publicar a função no Supabase e colocar a chave — te passo o passo a passo. <span style="color:var(--faint)">('+esc(asaasErr)+')</span></div>';
+  else{const A=ASAAS;const q=sk(document.getElementById('q').value||'');const list=(A.atrasados||[]).filter(a=>!q||sk(a.nome).includes(q));
+    body='<div class="kpis"><div class="kc g"><div class="l">Recebido no mês</div><div class="n">'+brlk(A.recebido_mes)+'</div><div class="s">'+A.n_recebido+' pagamentos</div></div><div class="kc b"><div class="l">A receber</div><div class="n">'+brlk(A.a_receber)+'</div><div class="s">'+A.n_a_receber+' cobranças</div></div><div class="kc r"><div class="l">Atrasado</div><div class="n">'+brlk(A.atrasado)+'</div><div class="s">'+A.n_atrasado+' cobranças</div></div><div class="kc"><div class="l">Atualizado</div><div class="n" style="font-size:15px">'+new Date(A.atualizado).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="s">direto do Asaas</div></div></div>'+
+    '<div class="count">'+list.length+' atrasados · por vencimento</div><div class="ctbl"><div class="crow h"><span>Cliente OnPro</span><span>Valor · venc</span></div>'+(list.length?list.map(a=>'<div class="crow"><div class="cl-main"><div class="cl-nm">'+esc(a.nome)+'</div></div><div style="display:flex;align-items:center;gap:10px"><span class="pill2">'+esc((a.venc||'').split('-').reverse().join('/'))+'</span><b style="color:var(--red)">'+brl(a.valor)+'</b></div></div>').join(''):'<div class="empty">Nenhum atraso ✓</div>')+'</div>';}
+  document.getElementById('content').innerHTML=chips+body;
+}
 /* FLUXO */
 function setMesF(m){mesF=m;renderFluxo();}
 function setFTipo(v){fTipo=v;renderFluxo();}
@@ -499,7 +516,7 @@ function renderDRE(){
 
 /* CLIENTES */
 function cmatch(c){const s=sk(c.status);if(cfiltro==='todos')return !isLed(c)&&s!=='permuta';if(cfiltro==='atrasados')return s==='naopago'||s==='urgente';if(cfiltro==='emaberto')return s==='emaberto';if(cfiltro==='pago')return s==='pago';if(cfiltro==='permuta')return s==='permuta';if(cfiltro==='led')return isLed(c);return true;}
-const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled']];
+const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['onpro','OnPro']];
 function setCF(f){cfiltro=f;renderClientes();}
 function crow(c){
   const s=sk(c.status),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,atr=(s==='naopago'||s==='urgente');
@@ -518,6 +535,7 @@ function crow(c){
 function renderClientes(){
   if(!DB){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   if(!cloaded){document.getElementById('content').innerHTML='<div class="state">Carregando clientes…</div>';return;}
+  if(cfiltro==='onpro'){renderAsaasPanel();return;}
   const q=sk(document.getElementById('q').value||'');
   let list=CLIENTES.filter(cmatch).filter(c=>!q||sk(c.empresa).includes(q)||sk(c.cidade).includes(q));
   list.sort((a,b)=>((parseInt(a.venc)||99)-(parseInt(b.venc)||99))||sk(a.empresa).localeCompare(sk(b.empresa)));
