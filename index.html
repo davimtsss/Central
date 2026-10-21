@@ -231,7 +231,7 @@ const CATS=['Mensalidade/Assinatura','Anúncio','Venda LED','Corporativo','Compr
 const LABEL={pago:'Pago',emaberto:'Em aberto',naopago:'Não pago',urgente:'Urgente',permuta:'Permuta',cancelado:'Cancelado'};
 const SCOL={pago:'var(--green)',emaberto:'#9aa3b5',naopago:'var(--red)',urgente:'#9c1f1f',permuta:'#9a7fd6'};
 const PAL=['#4a7fb5','#d99a4e','#cf5a5a','#5aa06f','#8a6bb5','#7a8595','#d6b84a','#5bb0c0','#b56a8a','#a0a8b6'];
-let tab='overview',mesF='todos',cfiltro='todos',fTipo='todos',cClasse='todos';
+let tab='overview',mesF=String(new Date().getMonth()+1).padStart(2,'0'),cfiltro='todos',fTipo='todos',cClasse='todos';
 let DB=null,USER=null,CANW=true,CLIENTES=[],cloaded=false,FLUXO=[],floaded=false,detailId=null,editId=null,fEditId=null;
 let CUSTOS=[],custoLoaded=false,custEditId=null,cPeriodo='';
 let DMD=[],dmLoaded=false,dmEditId=null,dmPer='';const LIMITE_SOCIO=4000;const SOCIOS=['Davi','Matheus'];
@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1624';
+const BUILD='1021-1627';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
