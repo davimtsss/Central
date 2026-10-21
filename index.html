@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1558';
+const BUILD='1021-1604';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -467,7 +467,24 @@ function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,today=new Date().getD
 function custoEmpresa(list){const e={};list.forEach(c=>{const v=+c.valor||0;if(c.emp2&&c.emp2!=='Não'&&c.emp2!==''&&c.emp2!==c.emp){const p=(c.ppri!=null?+c.ppri:50)/100;e[c.emp||'—']=(e[c.emp||'—']||0)+v*p;e[c.emp2]=(e[c.emp2]||0)+v*(1-p);}else{const k=c.emp||'—';e[k]=(e[k]||0)+v;}});return e;}
 function statusCusto(c){if(c.mespg===ymNow())return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
-async function setCustoStatus(id,val){const c=CUSTOS.find(x=>x.id===id);if(!c)return;if(val==='Atrasado')return;try{if(val==='Pago'){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);await restWrite('PATCH','custos',{status:'Pago',mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(id));toast('Pago'+(tt>0?' '+pg+'/'+tt:''));}else{await restWrite('PATCH','custos',{status:val,mespg:null},'id=eq.'+encodeURIComponent(id));toast(val);}await loadCustos();}catch(e){toast('Erro ao salvar');}}
+// ===== Pago em Custos → lança automaticamente no Fluxo (e desfaz se desmarcar) =====
+function custoFluxoDesc(c,pg){const tt=+c.tt||0;return (c.fornecedor||c.descricao||'Custo')+(tt>0?' · parcela '+pg+'/'+tt:'');}
+function custoCat(c){return c.grupo==='Salário'?'Salário/Folha':c.grupo==='Investimento'?'Equipamento':'Mensalidade/Assinatura';}
+function custoNoFluxo(c,pg){const desc=custoFluxoDesc(c,pg);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
+  return FLUXO.find(t=>t.tipo==='Saída'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
+async function lancarCustoNoFluxo(c,pg){if(custoNoFluxo(c,pg))return false;const now=new Date();
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Saída',emp:c.emp||'OnPro',emp2:c.emp2||'',ppri:(c.ppri!=null?+c.ppri:50),cat:custoCat(c),descricao:custoFluxoDesc(c,pg),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:(c.grupo==='Salário'?'Salário':c.grupo==='Investimento'?'Investimento':'Fixo'),pg:0,tt:0,fim:false};
+  await upsertSafe('fluxo',row);return true;}
+async function removerCustoDoFluxo(c,pg){const t=custoNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
+async function marcarPago(c){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
+  await restWrite('PATCH','custos',{status:'Pago',mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(c.id));
+  let l=false;try{l=await lancarCustoNoFluxo(c,pg);}catch(e){diag('fluxo auto falhou: '+(e&&e.message));}
+  toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · lançado no fluxo ✓':''));await loadCustos();await loadFluxo();}
+async function desmarcarPago(c,val){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
+  await restWrite('PATCH','custos',{status:val,mespg:null,pg:pg},'id=eq.'+encodeURIComponent(c.id));
+  let r=false;if(was){try{r=await removerCustoDoFluxo(c,+c.pg||0);}catch(e){diag('remover do fluxo falhou: '+(e&&e.message));}}
+  toast(val+(r?' · removido do fluxo':''));await loadCustos();await loadFluxo();}
+async function setCustoStatus(id,val){const c=CUSTOS.find(x=>x.id===id);if(!c)return;if(val==='Atrasado')return;try{if(val==='Pago')await marcarPago(c);else await desmarcarPago(c,val);}catch(e){writeErr(e);}}
 function custoRow(c){
   const pc=(+c.tt>0)?((+c.pg||0)+'/'+(+c.tt)):'—';
   const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');
@@ -560,7 +577,7 @@ async function _saveCusto(){
 }
 async function delCusto(id){try{await restWrite('DELETE','custos',null,'id=eq.'+encodeURIComponent(id));toast('Excluído');closeOv();await loadCustos();}catch(e){writeErr(e);}}
 async function toggleCustoFim(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{await restWrite('PATCH','custos',{fim:!c.fim},'id=eq.'+encodeURIComponent(id));toast(c.fim?'Reativado':'Encerrado ✓');closeOv();await loadCustos();}catch(e){writeErr(e);}}
-async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;const tt=+c.tt||0,pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);try{await restWrite('PATCH','custos',{mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(id));toast('Pago! '+(tt>0?pg+'/'+tt:''));closeOv();await loadCustos();}catch(e){writeErr(e);}}
+async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{closeOv();await marcarPago(c);}catch(e){writeErr(e);}}
 /* FLUXO form */
 /* empresa + rateio (fluxo e custos) */
 const COMBO='OnPro e ADmídia';
@@ -673,13 +690,30 @@ function renderClientes(){
   let bd=!CLIENTES.length?'<div class="empty"><h3>Nenhum cliente</h3>Clica em <b>+ Cliente</b>.</div>':!list.length?'<div class="empty"><h3>Nada nesse filtro ✓</h3></div>':'<div class="count">'+list.length+' clientes · por vencimento</div><div class="ctbl"><div class="crow h"><span>Cliente</span><span>Status</span></div>'+list.map(crow).join('')+'</div>';
   document.getElementById('content').innerHTML='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>'+bd;
 }
-async function setStSel(id,val){const c=CLIENTES.find(x=>x.id===id);if(!c)return;try{if(sk(val)==='pago'){const was=sk(c.status)==='pago',tt=+c.tt||0,pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);await DB.collection('clientes').doc(id).update({status:'Pago',pg:pg,mespg:ymNow()});toast('Pago'+(tt>0?' '+pg+'/'+tt:''));}else{await DB.collection('clientes').doc(id).update({status:val});toast(val);}}catch(e){writeErr(e);}}
+// ===== Cliente Pago → Entrada ADmídia no Fluxo (sempre Cora) =====
+function cliFluxoDesc(c,pg){const tt=+c.tt||0;return (c.empresa||'Cliente')+(tt>0?' · parcela '+pg+'/'+tt:' · mensalidade');}
+function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
+function cliNoFluxo(c,pg){const desc=cliFluxoDesc(c,pg);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
+  return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
+async function lancarCliNoFluxo(c,pg){if(!(+c.valor>0)||cliNoFluxo(c,pg))return false;const now=new Date();
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:'Variável',pg:0,tt:0,fim:false};
+  await upsertSafe('fluxo',row);return true;}
+async function removerCliDoFluxo(c,pg){const t=cliNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
+async function cliPago(c){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
+  await DB.collection('clientes').doc(c.id).update({status:'Pago',pg:pg,mespg:ymNow()});
+  let l=false;try{l=await lancarCliNoFluxo(c,pg);}catch(e){diag('entrada auto falhou: '+(e&&e.message));}
+  toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · entrada no fluxo ✓':''));await loadFluxo();return pg;}
+async function cliDesmarcar(c,val){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
+  await DB.collection('clientes').doc(c.id).update({status:val,pg:pg,mespg:null});
+  let r=false;if(was){try{r=await removerCliDoFluxo(c,+c.pg||0);}catch(e){diag('remover entrada falhou: '+(e&&e.message));}}
+  toast(val+(r?' · entrada removida do fluxo':''));await loadFluxo();}
+async function setStSel(id,val){const c=CLIENTES.find(x=>x.id===id);if(!c)return;try{if(sk(val)==='pago')await cliPago(c);else await cliDesmarcar(c,val);}catch(e){writeErr(e);}}
 function openDetail(id){detailId=id;const c=CLIENTES.find(x=>x.id===id);if(!c)return;const s=sk(c.status),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0;const di=(k,v)=>'<div class="di"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';const parcHtml=tt>0?'<span class="pnum" id="pn">'+pg+'</span> / '+tt+(pg>=tt?' ♻':''):'—';const nv=nivelCli(c);const msgPanel=(!['pago','permuta'].includes(s)&&(['naopago','urgente'].includes(s)||ymDiff(c.mespg,ymNow())>=1))?msgPanelHtml(msgCobranca('ADmídia',c.empresa,nv,(Number(c.valor)||0)*nv,d),(c.wpp?'zap(\''+id+'\')':'')):'';
   document.getElementById('modal').innerHTML='<h3>'+esc(c.empresa)+'</h3><div class="mstatus" style="color:'+(SCOL[s]||'var(--muted)')+'">● '+(LABEL[s]||esc(c.status))+'</div><div class="dgrid">'+di('Valor mensal',c.valor?brl(c.valor):'—')+di('Vencimento',d?('dia '+d):'—')+di('Parcelas',parcHtml)+di('Tipo',esc(c.tipo||'—'))+di('Cidade',esc(c.cidade||'—'))+di('Segmento',esc(c.seg||'—'))+di('Forma de pgto',c.forma?esc(c.forma):'—')+di('Contrato',c.contrato?esc(c.contrato):'—')+di('WhatsApp',c.wpp?esc(c.wpp):'—')+'</div>'+(CANW?'<div class="acts">'+(s!=='pago'&&s!=='permuta'?'<button class="ab pri" onclick="pagou(\''+id+'\')">✓ Pagou</button>':'')+(c.wpp?'<button class="ab" onclick="zap(\''+id+'\')">Cobrar</button>':'')+'<button class="ab" onclick="openForm(\''+id+'\')">Editar</button><button class="ab del" onclick="askDel(\''+id+'\')">Excluir</button></div>':'')+msgPanel;
   document.getElementById('ov').classList.add('open');
 }
 function countUp(el,to){el.classList.add('bump');setTimeout(()=>{el.textContent=to;},170);setTimeout(()=>{el.classList.remove('bump');},430);}
-async function pagou(id){const c=CLIENTES.find(x=>x.id===id);if(!c)return;const pg0=+c.pg||0,tt=+c.tt||0,pg=tt>0?Math.min(pg0+1,tt):pg0;const el=document.getElementById('pn');if(el&&tt>0)countUp(el,pg);const ms=document.querySelector('.mstatus');if(ms){ms.style.color='var(--green)';ms.textContent='● Pago';}try{await DB.collection('clientes').doc(id).update({pg:pg,status:'Pago',mespg:ymNow()});toast('Pago! '+(tt>0?pg+'/'+tt:''));setTimeout(()=>{if(detailId===id)closeOv();},700);}catch(e){writeErr(e);}}
+async function pagou(id){const c=CLIENTES.find(x=>x.id===id);if(!c)return;const pg0=+c.pg||0,tt=+c.tt||0,pg=tt>0?Math.min(pg0+1,tt):pg0;const el=document.getElementById('pn');if(el&&tt>0)countUp(el,pg);const ms=document.querySelector('.mstatus');if(ms){ms.style.color='var(--green)';ms.textContent='● Pago';}try{await cliPago(c);setTimeout(()=>{if(detailId===id)closeOv();},700);}catch(e){writeErr(e);}}
 function zap(id){const c=CLIENTES.find(x=>x.id===id);if(!c||!c.wpp)return;const n=(''+c.wpp).replace(/\D/g,'');const nv=nivelCli(c);window.open('https://wa.me/55'+n+'?text='+encodeURIComponent(msgCobranca('ADmídia',c.empresa,nv,(Number(c.valor)||0)*nv,parseInt(c.venc)||0)),'_blank');}
 function writeErr(e){console.warn('writeErr',e);toastErr('Erro ao salvar: '+((e&&e.message)||e));}
 function openForm(id){editId=id||null;const c=id?CLIENTES.find(x=>x.id===id):{};const sel=(n,o,v)=>'<select class="fi" id="f-'+n+'">'+o.map(x=>'<option '+(x===v?'selected':'')+'>'+x+'</option>').join('')+'</select>';
