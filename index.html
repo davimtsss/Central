@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1604';
+const BUILD='1021-1605';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -319,6 +319,7 @@ async function loadFluxo(){
   let data;try{data=await restRead('fluxo');}catch(e){console.warn(e);return;}
   const items=(data||[]).map(r=>({id:r.id,data:r.data,mes:r.mes,tipo:r.tipo,emp:r.emp,cat:r.cat,desc:r.descricao,valor:Number(r.valor)||0,forma:r.forma,classe:r.classe||'',fim:!!r.fim,pg:r.pg||0,tt:r.tt||0,emp2:r.emp2||'',ppri:(r.ppri!=null?r.ppri:50),conta:r.conta||''}));
   if(fluCb)fluCb({data:()=>({items})});
+  if(ASAAS)syncAsaasFluxo();
 }
 async function loadCustos(){
   if(!sb)return;
@@ -416,7 +417,18 @@ function copiarTxt(id){const el=document.getElementById(id);if(!el)return;naviga
 function msgPanelHtml(txt,wppJs){return '<div class="panel" style="margin-top:14px;padding:14px"><div class="ph">💬 Mensagem de cobrança</div><textarea class="fi" id="msgcob" rows="5" readonly style="font-size:13px">'+esc(txt)+'</textarea><div class="mbtns" style="margin-top:10px"><button class="cancel" onclick="copiarTxt(\'msgcob\')">Copiar</button>'+(wppJs?'<button class="save" onclick="'+wppJs+'">WhatsApp</button>':'')+'</div></div>';}
 function openMsgAsaas(i){const x=ASAAS_AGG[i];if(!x)return;document.getElementById('modal').innerHTML='<h3>'+esc(x.nome)+'</h3><div class="mstatus" style="color:var(--red)">● '+x.n+(x.n>1?' parcelas vencidas':' parcela vencida')+' · '+brl(x.total)+'</div>'+msgPanelHtml(msgCobranca('OnPro',x.nome,x.n,x.total,''),(x.fone?'zapAsaas('+i+')':''))+'<div class="mbtns"><button class="cancel" onclick="closeOv()">Fechar</button></div>';document.getElementById('ov').classList.add('open');}
 function zapAsaas(i){const x=ASAAS_AGG[i];if(!x||!x.fone)return;let n=(''+x.fone).replace(/\D/g,'');if(!n.startsWith('55'))n='55'+n;window.open('https://wa.me/'+n+'?text='+encodeURIComponent(msgCobranca('OnPro',x.nome,x.n,x.total,'')),'_blank');}
-async function loadAsaas(){if(!sb)return;try{const {data,error}=await sb.functions.invoke('bright-action');if(error)throw error;if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
+// ===== Asaas → Entradas OnPro automáticas no Fluxo (só pagamentos a partir de ASAAS_SYNC_DESDE) =====
+const ASAAS_SYNC_DESDE='2026-10-21';
+const ASAAS_FORMA={PIX:'Pix',BOLETO:'Boleto',CREDIT_CARD:'Cartão',DEBIT_CARD:'Cartão',TRANSFER:'Pix',DEPOSIT:'Dinheiro'};
+let asaasSyncing=false;
+async function syncAsaasFluxo(){if(asaasSyncing||!floaded||!ASAAS||!Array.isArray(ASAAS.recebidos))return;asaasSyncing=true;let n=0;
+  try{const ids=new Set(FLUXO.map(t=>t.id));
+    for(const p of ASAAS.recebidos){if(!p.id||!p.data||p.data<ASAAS_SYNC_DESDE)continue;const id='asaas_'+p.id;if(ids.has(id))continue;
+      const [y,m,d]=p.data.split('-');
+      await upsertSafe('fluxo',{id,data:d+'/'+m+'/'+y,mes:m,tipo:'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:'Mensalidade/Assinatura',descricao:(p.nome||'Cliente OnPro')+' · Asaas',valor:+p.valor||0,forma:ASAAS_FORMA[p.forma]||'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});n++;}
+    if(n){toast(n+' recebimento'+(n>1?'s':'')+' do Asaas lançado'+(n>1?'s':'')+' no fluxo ✓');await loadFluxo();}
+  }catch(e){diag('sync asaas falhou: '+(e&&e.message));}finally{asaasSyncing=false;}}
+async function loadAsaas(){if(!sb)return;try{const tok=await authToken();if(!tok)throw new Error('sem login');const r=await fetchT(SB_URL+'/functions/v1/bright-action',{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:'{}'},25000);let data=null;try{data=await r.json();}catch(_){}if(!r.ok)throw new Error((data&&data.error)||('HTTP '+r.status));if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';syncAsaasFluxo();}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
 function renderAsaasPanel(){
   const chips='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
   let body;
