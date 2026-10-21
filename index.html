@@ -474,8 +474,7 @@ function openCustoForm(id){
     '<div class="flg">Descrição</div><input class="fi" id="k-descricao" value="'+esc(c.descricao||'')+'">'+
     '<div class="ff"><div><div class="flg">Valor mensal (R$)</div><input class="fi" id="k-valor" type="number" value="'+(c.valor||'')+'"></div><div><div class="flg">Forma</div><input class="fi" id="k-forma" value="'+esc(c.forma||'')+'" placeholder="Pix / Boleto"></div></div>'+
     '<div class="ff"><div><div class="flg">Dia vencimento</div><input class="fi" id="k-venc" type="number" min="1" max="31" value="'+(c.venc||'')+'"></div><div><div class="flg">Parcelas pagas / total</div><div style="display:flex;gap:6px"><input class="fi" id="k-pg" type="number" placeholder="pagas" value="'+(c.pg?c.pg:'')+'"><input class="fi" id="k-tt" type="number" placeholder="total" value="'+(c.tt?c.tt:'')+'"></div></div></div>'+
-    '<div class="ff"><div><div class="flg">Empresa</div>'+sel('emp',['OnPro','ADmídia','ADled'],c.emp||'OnPro')+'</div><div><div class="flg">Dividir com</div>'+sel('emp2',['Não','OnPro','ADmídia','ADled'],c.emp2||'Não')+'</div></div>'+
-    '<div class="flg">% da 1ª empresa (se dividir)</div><input class="fi" id="k-ppri" type="number" min="0" max="100" value="'+(c.ppri!=null?c.ppri:50)+'">'+
+    '<div class="ff"><div><div class="flg">Empresa</div>'+empSel('k',c)+'</div><div>'+rateioHtml('k',c)+'</div></div>'+
     '<div class="flg">Observação</div><textarea class="fi" id="k-obs" rows="2" placeholder="Anote algo sobre esse custo...">'+esc(c.obs||'')+'</textarea>'+
     '<div class="mbtns">'+(id?'<button class="del-confirm" style="flex:.5" onclick="delCusto(\''+id+'\')">Excluir</button>':'')+(id?'<button class="cancel" style="flex:.8" onclick="toggleCustoFim(\''+id+'\')">'+(c.fim?'↩ Reativar':'✓ Encerrar')+'</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveCusto()">Salvar</button></div>'+
     (id&&!c.fim?'<button class="ab pri" style="width:100%;margin-top:8px;border-radius:11px;padding:12px" onclick="pagouCusto(\''+id+'\')">✓ Paguei este mês</button>':'');
@@ -484,8 +483,8 @@ function openCustoForm(id){
 async function saveCusto(){
   if(!sb){toast('Faça login');return;}
   const g=n=>document.getElementById('k-'+n).value.trim();
-  const old=custEditId?CUSTOS.find(x=>x.id===custEditId):null;
-  const row={id:custEditId||('cx'+Date.now()),grupo:g('grupo'),data:old?old.data:(new Date().toLocaleDateString('pt-BR')),fornecedor:g('fornecedor'),descricao:g('descricao'),emp:g('emp'),emp2:(g('emp2')==='Não'?'':g('emp2')),ppri:(g('ppri')===''?50:Math.max(0,Math.min(100,parseInt(g('ppri'))||0))),forma:g('forma'),valor:parseFloat(g('valor'))||0,venc:parseInt(g('venc'))||null,pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,status:g('status'),fim:old?!!old.fim:false,obs:g('obs'),mespg:old?(old.mespg||ymNow()):ymNow()};
+  const old=custEditId?CUSTOS.find(x=>x.id===custEditId):null;const E=readEmp('k');
+  const row={id:custEditId||('cx'+Date.now()),grupo:g('grupo'),data:old?old.data:(new Date().toLocaleDateString('pt-BR')),fornecedor:g('fornecedor'),descricao:g('descricao'),emp:E.emp,emp2:E.emp2,ppri:E.ppri,forma:g('forma'),valor:parseFloat(g('valor'))||0,venc:parseInt(g('venc'))||null,pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,status:g('status'),fim:old?!!old.fim:false,obs:g('obs'),mespg:old?(old.mespg||ymNow()):ymNow()};
   if(!row.fornecedor&&!row.descricao){toast('Põe fornecedor ou descrição');return;}
   try{await sbw(()=>sb.from('custos').upsert(row));toast(custEditId?'Salvo':'Custo adicionado');closeOv();await loadCustos();}catch(e){console.warn('saveCusto',e);toast('Erro ao salvar — tenta de novo');}
 }
@@ -493,6 +492,13 @@ async function delCusto(id){try{const{error}=await sb.from('custos').delete().eq
 async function toggleCustoFim(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{const{error}=await sb.from('custos').update({fim:!c.fim}).eq('id',id);if(error)throw error;toast(c.fim?'Reativado':'Encerrado ✓');closeOv();await loadCustos();}catch(e){toast('Erro');}}
 async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;const tt=+c.tt||0,pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);try{const{error}=await sb.from('custos').update({mespg:ymNow(),pg:pg}).eq('id',id);if(error)throw error;toast('Pago! '+(tt>0?pg+'/'+tt:''));closeOv();await loadCustos();}catch(e){toast('Erro');}}
 /* FLUXO form */
+/* empresa + rateio (fluxo e custos) */
+const COMBO='OnPro e ADmídia';
+function isCombo(t){return !!(t&&t.emp2&&t.emp2!=='Não'&&t.emp2!=='');}
+function empSel(id,t){t=t||{};const legacy=(t.emp&&!['OnPro','ADmídia','ADled'].includes(t.emp)&&!isCombo(t))?[t.emp]:[];const opts=['OnPro','ADmídia','ADled',COMBO].concat(legacy);const v=isCombo(t)?COMBO:(t.emp||'ADmídia');return '<select class="fi" id="'+id+'-emp" onchange="toggleRateio(\''+id+'\')">'+opts.map(x=>'<option '+(x===v?'selected':'')+'>'+x+'</option>').join('')+'</select>';}
+function rateioHtml(id,t){t=t||{};const on=isCombo(t);const pct=on?(t.emp==='ADmídia'?(100-(+t.ppri||50)):(+t.ppri||50)):50;return '<div id="'+id+'-rateio" style="display:'+(on?'block':'none')+'"><div class="flg">% pra OnPro (o resto vai pra ADmídia)</div><input class="fi" id="'+id+'-ppri" type="number" min="0" max="100" value="'+pct+'" placeholder="ex: 80"></div>';}
+function toggleRateio(id){const s=document.getElementById(id+'-emp');const r=document.getElementById(id+'-rateio');if(s&&r)r.style.display=(s.value===COMBO)?'block':'none';}
+function readEmp(id){const v=document.getElementById(id+'-emp').value;if(v===COMBO){const p=parseInt(document.getElementById(id+'-ppri').value);return {emp:'OnPro',emp2:'ADmídia',ppri:isNaN(p)?50:Math.max(0,Math.min(100,p))};}return {emp:v,emp2:'',ppri:50};}
 function openFluxoForm(id){
   if(!CANW&&id){return;}
   fEditId=id||null;const t=id?FLUXO.find(x=>x.id===id):{tipo:'Saída'};
@@ -500,10 +506,10 @@ function openFluxoForm(id){
   document.getElementById('modal').innerHTML='<h3>'+(id?'Editar lançamento':'Novo lançamento')+'</h3>'+
     '<div class="ff"><div><div class="flg">Data</div><input class="fi" id="x-data" type="date" value="'+dmyToIso(t.data||'')+'"></div><div><div class="flg">Tipo</div>'+sel('tipo',['Entrada','Saída'],t.tipo||'Saída')+'</div></div>'+
     '<div class="flg">Descrição (nome)</div><input class="fi" id="x-desc" value="'+esc(t.desc||'')+'" placeholder="Ex: Gasolina, Salário Gabi...">'+
-    '<div class="ff"><div><div class="flg">Categoria</div>'+sel('cat',CATS,t.cat||'Outros')+'</div><div><div class="flg">Frente</div>'+sel('emp',FRENTES,t.emp||'ADmídia')+'</div></div>'+
+    '<div class="ff"><div><div class="flg">Categoria</div>'+sel('cat',CATS,t.cat||'Outros')+'</div><div><div class="flg">Empresa</div>'+empSel('x',t)+'</div></div>'+
     '<div class="ff"><div><div class="flg">Valor (R$)</div><input class="fi" id="x-valor" type="number" value="'+(t.valor||'')+'"></div><div><div class="flg">Forma de pagamento</div>'+sel('forma',FORMAS,t.forma||'Pix')+'</div></div>'+
     '<div class="ff"><div><div class="flg">Grupo do custo</div>'+sel('classe',['Variável','Fixo','Salário','Investimento'],t.classe||'Variável')+'</div><div><div class="flg">Parcelas pagas / total</div><div style="display:flex;gap:6px"><input class="fi" id="x-pg" type="number" placeholder="pagas" value="'+(t.pg?t.pg:'')+'"><input class="fi" id="x-tt" type="number" placeholder="total" value="'+(t.tt?t.tt:'')+'"></div></div></div>'+
-    '<div class="ff"><div><div class="flg">Dividir com outra empresa?</div>'+sel('emp2',['Não','OnPro','ADmídia','ADled','ADview'],t.emp2||'Não')+'</div><div><div class="flg">% da 1ª (Frente)</div><input class="fi" id="x-ppri" type="number" min="0" max="100" value="'+(t.ppri!=null?t.ppri:50)+'" placeholder="ex: 80"></div></div>'+
+    rateioHtml('x',t)+
     '<div class="mbtns">'+(id&&CANW?'<button class="del-confirm" style="flex:.5" onclick="delFluxo(\''+id+'\')">Excluir</button>':'')+(id?'<button class="cancel" style="flex:.85" onclick="toggleFim(\''+id+'\')">'+(t.fim?'↩ Reativar':'✓ Acabou')+'</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveFluxo()">Salvar</button></div>';
   document.getElementById('ov').classList.add('open');
 }
@@ -511,8 +517,8 @@ async function saveFluxo(){
   if(!sb){toast('Faça login');return;}
   const g=n=>document.getElementById('x-'+n).value.trim();
   const iso=g('data');const data=isoToDmy(iso);
-  const old=fEditId?FLUXO.find(x=>x.id===fEditId):null;
-  const it={id:fEditId||('f'+Date.now()),data:data,mes:(iso?iso.split('-')[1]:''),tipo:g('tipo'),desc:g('desc'),cat:g('cat'),emp:g('emp'),valor:parseFloat(g('valor'))||0,forma:g('forma'),classe:g('classe')||'Variável',pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,fim:old?!!old.fim:false,emp2:(g('emp2')==='Não'?'':g('emp2')),ppri:(g('ppri')===''?50:Math.max(0,Math.min(100,parseInt(g('ppri'))||0)))};
+  const old=fEditId?FLUXO.find(x=>x.id===fEditId):null;const E=readEmp('x');
+  const it={id:fEditId||('f'+Date.now()),data:data,mes:(iso?iso.split('-')[1]:''),tipo:g('tipo'),desc:g('desc'),cat:g('cat'),emp:E.emp,valor:parseFloat(g('valor'))||0,forma:g('forma'),classe:g('classe')||'Variável',pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,fim:old?!!old.fim:false,emp2:E.emp2,ppri:E.ppri};
   if(!it.desc&&!it.valor){toast('Põe descrição e valor');return;}
   const row={id:it.id,data:it.data,mes:it.mes,tipo:it.tipo,emp:it.emp,cat:it.cat,descricao:it.desc,valor:it.valor,forma:it.forma,classe:it.classe,pg:it.pg,tt:it.tt,fim:it.fim,emp2:it.emp2,ppri:it.ppri};
   try{await sbw(()=>sb.from('fluxo').upsert(row));toast(fEditId?'Salvo':'Lançamento adicionado');closeOv();await loadFluxo();}catch(e){toast('Erro ao salvar — tenta de novo');}
