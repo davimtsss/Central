@@ -314,7 +314,7 @@ function renderOverview(){
 
 /* ===== ASAAS (OnPro) ===== */
 function goOnPro(){cfiltro='onpro';go('clientes');}
-async function loadAsaas(){if(!sb)return;try{const {data,error}=await sb.functions.invoke('asaas');if(error)throw error;if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
+async function loadAsaas(){if(!sb)return;try{const {data,error}=await sb.functions.invoke('bright-action');if(error)throw error;if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
 function renderAsaasPanel(){
   const chips='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
   let body;
