@@ -53,7 +53,7 @@ h1,h2,h3{margin:0;font-weight:700}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:18px}
 .kc{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
 .kc .l{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.kc .n{font-size:25px;font-weight:800;margin-top:7px;letter-spacing:-.01em}
+.kc .n{font-size:21px;font-weight:800;margin-top:7px;letter-spacing:-.01em;white-space:nowrap}
 .kc .s{font-size:11.5px;color:var(--faint);margin-top:4px}
 .kc.g .n{color:var(--green)}.kc.r .n{color:var(--red)}.kc.b .n{color:var(--accent)}
 @media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -288,8 +288,8 @@ let SAVING=false;
 async function guarded(fn){if(SAVING)return;SAVING=true;clearFormErr();diag('— clique em Salvar —');const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await Promise.race([fn(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('travou por 45s')),45000))]);}catch(e){diag('TRAVOU: '+(e&&e.message));toastErr('Erro ao salvar: '+((e&&e.message)||e));}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
-function brl(n){return 'R$ '+(Math.round(Number(n))||0).toLocaleString('pt-BR');}
-function brlk(n){n=Number(n)||0;return n>=1000?('R$ '+(n/1000).toFixed(n>=10000?0:1).replace('.',',')+'k'):brl(n);}
+function brl(n){n=Number(n)||0;return (n<0?'−':'')+'R$ '+Math.abs(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function brlk(n){return brl(n);}
 function esc(s){return (s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function isLed(c){return sk(c.tipo)==='vendaled';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1627';
+const BUILD='1021-1642';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
