@@ -251,9 +251,9 @@ function copiarDiag(){const j=tokLocal();const txt=['Central versão '+BUILD,nav
 function tokLocal(){try{const j=JSON.parse(localStorage.getItem(SB_LS)||'null');if(j&&j.access_token)return j;}catch(_){}return null;}
 async function refreshTok(){try{const r=await withTimeout(sb.auth.refreshSession(),4000);if(r&&r.data&&r.data.session){diag('refreshSession ok');return r.data.session.access_token;}diag('refreshSession sem sessão'+(r&&r.error?': '+r.error.message:''));}catch(e){diag('refreshSession falhou: '+(e&&e.message));}try{const r=await withTimeout(sb.auth.getSession(),2000);if(r&&r.data&&r.data.session)return r.data.session.access_token;}catch(_){}const j=tokLocal();return j?j.access_token:null;}
 async function authToken(){const j=tokLocal();if(j&&j.expires_at&&(j.expires_at*1000-Date.now())>90000)return j.access_token;diag('token local '+(j?'vencendo':'ausente')+' → renovando');const t=await refreshTok();diag('renovação '+(t?'ok':'FALHOU'));return t;}
-async function restCall(method,table,body,query,prefer){let row=body?Object.assign({},body):null;let last=null;
+async function restCall(method,table,body,query,prefer){let row=body?Object.assign({},body):null;let last=null;diag(method+' '+table+': pegando token');
   for(let i=0;i<4;i++){
-    const tok=await authToken();if(!tok)throw new Error('login expirou — recarrega a página');
+    const tok=await authToken();diag(method+' '+table+' tent.'+(i+1)+': enviando');if(!tok)throw new Error('login expirou — recarrega a página');
     const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),8000);const t0=Date.now();
     try{
       const r=await fetch(SB_URL+'/rest/v1/'+table+(query?'?'+query:''),{method,signal:ctl.signal,cache:'no-store',
@@ -275,7 +275,7 @@ async function restRead(table){return restCall('GET',table,null,'select=*');}
 async function restWrite(method,table,body,query){return restCall(method,table,body,query,method==='POST'?'resolution=merge-duplicates,return=minimal':'return=minimal');}
 async function upsertSafe(table,row){return restWrite('POST',table,row);}
 let SAVING=false;
-async function guarded(fn){if(SAVING)return;SAVING=true;clearFormErr();const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await fn();}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
+async function guarded(fn){if(SAVING)return;SAVING=true;clearFormErr();diag('— clique em Salvar —');const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await Promise.race([fn(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('travou por 45s')),45000))]);}catch(e){diag('TRAVOU: '+(e&&e.message));toastErr('Erro ao salvar: '+((e&&e.message)||e));}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
 function brl(n){return 'R$ '+(Math.round(Number(n))||0).toLocaleString('pt-BR');}
@@ -293,10 +293,10 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1536';
+const BUILD='1021-1539';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
-document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v)v.textContent="versão "+BUILD;});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
+document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
 const SB_URL='https://dbvykrqtfakhylndrtdn.supabase.co';
 const SB_KEY='sb_publishable_3PpYrWZ4Eb9SW7635PhF6w_F_XfR4dC';
 let sb=null,cliCb=null,fluCb=null,authedOnce=false;
