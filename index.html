@@ -127,8 +127,7 @@ h1,h2,h3{margin:0;font-weight:700}
 .save{background:var(--accent);color:#fff}.cancel{background:var(--bg);color:var(--muted);border:1.5px solid var(--line)!important}.del-confirm{background:var(--red);color:#fff}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:999px;font-weight:500;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
-.tgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
-@media(max-width:1300px){.tgrid{grid-template-columns:repeat(3,1fr)}}
+.tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
 @media(max-width:1100px){.tgrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.tgrid{grid-template-columns:1fr}}
 .tcard{cursor:pointer;border-left:4px solid var(--line)}
@@ -304,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1658';
+const BUILD='1021-1704';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -406,7 +405,7 @@ function renderOverview(){
   const camI='<img class="tc-img" src="'+ICONS.cam+'" alt="">';const ckp=checkPend();
   const c5=!checkLoaded?card('',camI,'Check-in fotográfico','…',[],'openCheckins()','Carregando…'):(checkErr?card('',camI,'Check-in fotográfico','!',[['Tabela ainda não criada','ver como →']],'openCheckins()',''):card(ckp.some(x=>x.k.dias<0)?'warn':'ok',camI,'Check-in fotográfico',ckp.length,ckp.map(x=>[esc(x.c.nome),x.k.lbl]),'openCheckins()',CHECK.length?'Fotos em dia ✓':'Clique pra adicionar clientes'));
   const c4=!asaasLoaded?card('','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças','…',[],'goOnPro()','Carregando…'):(asaasErr?card('','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças','!',[['Asaas ainda não conectado','configurar →']],'goOnPro()',''):card(asaasAgg().length?'warn':'ok','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças',asaasAgg().length,asaasAgg().map(x=>[esc(x.nome),x.n+' venc. · '+brl(x.total)]),'goOnPro()','Nenhum atraso na OnPro ✓'));
-  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c5+c3+c4+'</div>'+projecaoCustos()+kpis;
+  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c5+c3+'</div>'+projecaoCustos()+kpis;
 }
 
 /* ===== ASAAS (OnPro) ===== */
