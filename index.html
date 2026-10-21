@@ -122,6 +122,19 @@ h1,h2,h3{margin:0;font-weight:700}
 .save{background:var(--accent);color:#fff}.cancel{background:var(--bg);color:var(--muted);border:1.5px solid var(--line)!important}.del-confirm{background:var(--red);color:#fff}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:999px;font-weight:500;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+@media(max-width:820px){.tgrid{grid-template-columns:1fr}}
+.tcard{cursor:pointer;border-left:4px solid var(--line)}
+.tcard.warn{border-left-color:var(--red)}.tcard.ok{border-left-color:var(--green)}
+.tcard:hover{background:var(--bg)}
+.tc-h{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tc-i{font-size:18px}.tc-t{font-weight:700;font-size:14px;flex:1}
+.tc-n{font-weight:800;font-size:22px}.tcard.warn .tc-n{color:var(--red)}.tcard.ok .tc-n{color:var(--green)}
+.tc-r{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.tc-r:last-child{border-bottom:none}
+.tc-d{color:var(--muted);font-size:12px;white-space:nowrap}
+.tc-m{font-size:12px;color:var(--accent);font-weight:600;margin-top:8px}
+.tc-ok{color:var(--green);font-weight:600;font-size:13px}
 .btn-logout{background:transparent;border:1px solid var(--line);color:var(--muted);font-family:var(--f);font-weight:600;font-size:12.5px;padding:8px 12px;border-radius:9px;cursor:pointer;white-space:nowrap}
 .login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
 .login.show{display:flex}
@@ -275,21 +288,24 @@ function donut(items,total){const R=52,C=2*Math.PI*R;let off=0,segs='';items.for
 
 /* OVERVIEW */
 function setMesO(m){mesF=m;renderOverview();}
+function goCobrar(){cfiltro='atrasados';go('clientes');}
 function renderOverview(){
-  if(DB&&!floaded){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
-  const tx=fluxoFilt();
+  if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
+  const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
+  const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago'].includes(sk(c.status))).map(c=>({c,late:Math.max(0,ymDiff(c.mespg,ymNow())),urg:['naopago','urgente'].includes(sk(c.status))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
+  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago').map(c=>{const v=+c.venc;let k=9,lbl='';if(v<td){k=0;lbl='atrasada '+(td-v)+'d';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
+  let maxD=null;FLUXO.forEach(t=>{const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(!maxD||d>maxD)maxD=d;}});
+  const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>2);
+  const mm=ymNow().split('-')[1];const tx=FLUXO.filter(t=>t.mes===mm);
   const ent=tx.filter(t=>t.tipo==='Entrada').reduce((a,t)=>a+(+t.valor||0),0);
   const sai=tx.filter(t=>t.tipo==='Saída').reduce((a,t)=>a+(+t.valor||0),0);
   const aRec=CLIENTES.filter(c=>!isLed(c)&&['naopago','urgente','emaberto'].includes(sk(c.status))).reduce((a,c)=>a+(Number(c.valor)||0),0);
-  const bycat={};tx.filter(t=>t.tipo==='Saída').forEach(t=>{bycat[t.cat||'Outros']=(bycat[t.cat||'Outros']||0)+(+t.valor||0);});
-  let cats=Object.entries(bycat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v).slice(0,8);cats.forEach((c,i)=>c.c=PAL[i%PAL.length]);
-  const byemp={};tx.filter(t=>t.tipo==='Entrada').forEach(t=>{byemp[t.emp||'—']=(byemp[t.emp||'—']||0)+(+t.valor||0);});
-  const emps=Object.entries(byemp).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
-  const kc=(cls,l,n,s)=>'<div class="kc '+cls+'"><div class="l">'+l+'</div><div class="n">'+n+'</div><div class="s">'+s+'</div></div>';
-  document.getElementById('content').innerHTML=mesChips('setMesO')+
-    '<div class="kpis">'+kc('g','Entradas',brlk(ent),'recebido')+kc('r','Saídas',brlk(sai),'pago')+kc('b','Saldo',brlk(ent-sai),'entradas − saídas')+kc('','A receber',brlk(aRec),'clientes em aberto')+'</div>'+
-    '<div class="cols"><div class="panel"><div class="ph">Gastos por categoria · total '+brl(sai)+'</div><div class="donut-wrap">'+donut(cats,sai)+'<div class="leg">'+(cats.length?cats.map(c=>'<div class="row"><span class="dot" style="background:'+c.c+'"></span><span class="nm">'+esc(c.k)+'</span><span class="vv">'+brlk(c.v)+'</span></div>').join(''):'<span style="color:var(--faint)">Sem saídas no período</span>')+'</div></div></div>'+
-    '<div class="panel"><div class="ph">Entradas por frente · total '+brl(ent)+'</div>'+(emps.length?emps.map(e=>'<div class="frow"><span>'+esc(e.k)+'</span><span class="vv">'+brl(e.v)+'</span></div>').join(''):'<span style="color:var(--faint)">Sem entradas</span>')+'</div></div>';
+  const card=(cls,ico,title,n,rows,js,empty)=>'<div class="panel tcard '+cls+'" onclick="'+js+'"><div class="tc-h"><span class="tc-i">'+ico+'</span><span class="tc-t">'+title+'</span><span class="tc-n">'+n+'</span></div>'+(rows.length?'<div class="tc-l">'+rows.slice(0,6).map(r=>'<div class="tc-r"><span>'+r[0]+'</span><span class="tc-d">'+r[1]+'</span></div>').join('')+'<div class="tc-m">'+(rows.length>6?'+'+(rows.length-6)+' mais · ':'')+'ver todos →</div></div>':'<div class="tc-ok">'+empty+'</div>')+'</div>';
+  const c1=card(cobrar.length?'warn':'ok','📞','Cobrar',cobrar.length,cobrar.map(x=>[esc(x.c.empresa),x.late>=1?(x.late+(x.late>1?' meses':' mês')+' atrás'):'em atraso']),'goCobrar()','Ninguém pra cobrar ✓');
+  const c2=card(pagar.length?'warn':'ok','💸','Contas a pagar',pagar.length,pagar.map(x=>[esc(x.c.fornecedor||x.c.descricao)+' · '+brl(x.c.valor),x.lbl]),"go('custos')",'Nada vencendo ✓');
+  const c3=lancar?card('warn','📝','Lançar no fluxo',(diasSem===null?'!':diasSem+'d'),[[diasSem===null?'Nenhum lançamento ainda':'Faz '+diasSem+' dias sem lançar','lança aí →']],"go('fluxo')",''):card('ok','📝','Fluxo de caixa','✓',[],"go('fluxo')",'Lançamentos em dia ✓');
+  const kpis='<div class="kpis" style="margin-top:14px"><div class="kc g"><div class="l">Entradas · '+(MES[mm]||mm)+'</div><div class="n">'+brlk(ent)+'</div></div><div class="kc r"><div class="l">Saídas · '+(MES[mm]||mm)+'</div><div class="n">'+brlk(sai)+'</div></div><div class="kc b"><div class="l">Saldo</div><div class="n">'+brlk(ent-sai)+'</div></div><div class="kc"><div class="l">A receber</div><div class="n">'+brlk(aRec)+'</div><div class="s">clientes em aberto</div></div></div>';
+  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c3+'</div>'+kpis;
 }
 
 /* FLUXO */
