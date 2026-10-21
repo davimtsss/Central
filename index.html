@@ -187,7 +187,7 @@ html,body{overflow-x:hidden;max-width:100%}
 .lg-in:focus{border-color:var(--accent)}
 .lg-btn{width:100%;padding:13px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-family:var(--f);font-weight:700;font-size:15px;cursor:pointer;margin-top:4px}
 .lg-err{color:var(--red);font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
-</style>
+.ver{position:fixed;right:10px;bottom:6px;font-size:11px;color:#9aa3ad;z-index:5}</style>
 </head>
 <body>
 
@@ -289,6 +289,10 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
+const BUILD='1021-1528';
+// auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
+async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
+document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v)v.textContent="versão "+BUILD;});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
 const SB_URL='https://dbvykrqtfakhylndrtdn.supabase.co';
 const SB_KEY='sb_publishable_3PpYrWZ4Eb9SW7635PhF6w_F_XfR4dC';
 let sb=null,cliCb=null,fluCb=null,authedOnce=false;
@@ -668,5 +672,5 @@ async function doDel(){try{await DB.collection('clientes').doc(editId).delete();
 function closeOv(){document.getElementById('ov').classList.remove('open');editId=null;detailId=null;fEditId=null;}
 document.getElementById('ov').addEventListener('click',e=>{if(e.target.id==='ov')closeOv();});
 </script>
-</body>
+<div class="ver" id="ver"></div></body>
 </html>
