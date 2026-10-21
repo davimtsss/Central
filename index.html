@@ -213,9 +213,9 @@ async function loadFluxo(){
 }
 async function loadCustos(){
   if(!sb)return;
-  const {data,error}=await sb.from('custos').select('*');
-  if(error){console.warn('custos',error);return;}
+  try{const {data,error}=await sb.from('custos').select('*');if(error)throw error;
   CUSTOS=(data||[]).map(r=>({...r,valor:Number(r.valor)||0,pg:+r.pg||0,tt:+r.tt||0,venc:(r.venc!=null?+r.venc:null),ppri:(r.ppri!=null?+r.ppri:50),fim:!!r.fim}));
+  }catch(e){console.warn('custos',e);}
   custoLoaded=true;
   if(tab==='custos')renderActive();
 }
@@ -436,7 +436,7 @@ async function delFluxo(id){try{const{error}=await sb.from('fluxo').delete().eq(
 
 /* DRE */
 /* ===== SÓCIOS (D/M) ===== */
-async function loadDM(){if(!sb)return;const{data,error}=await sb.from('dm').select('*');if(error){console.warn('dm',error);return;}DMD=(data||[]).map(r=>({...r,valor:Number(r.valor)||0}));dmLoaded=true;if(tab==='dm')renderActive();}
+async function loadDM(){if(!sb)return;try{const{data,error}=await sb.from('dm').select('*');if(error)throw error;DMD=(data||[]).map(r=>({...r,valor:Number(r.valor)||0}));}catch(e){console.warn('dm',e);}dmLoaded=true;if(tab==='dm')renderActive();}
 function setDMPer(m){dmPer=m;renderDM();}
 function renderDM(){
   if(sb&&!dmLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
