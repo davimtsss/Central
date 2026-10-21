@@ -152,6 +152,19 @@ h1,h2,h3{margin:0;font-weight:700}
 .tar-add .fi{flex:1}.tar-add .save{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:var(--f);font-weight:600;cursor:pointer;white-space:nowrap}
 .tar-sep{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px}
 .tar-sep a{color:var(--accent)}
+/* celular: evita o zoom automático do iOS (campos < 16px) e corta qualquer vazamento lateral */
+html,body{overflow-x:hidden;max-width:100%}
+@media(max-width:600px){
+  input,select,textarea,.fi,.stsel,.hd .search input,.toolbar select{font-size:16px!important}
+  .hd img{height:34px}.hd .ti{font-size:18px}.hd .ti small{font-size:11px}
+  .hd .top{gap:10px}.hd .sp{display:none}.hd .ti{flex:1;min-width:0}
+  .hd .search{flex:1 1 100%;order:3}.hd .search input{width:100%;max-width:none}
+  .btn-new{order:4;flex:1}.btn-logout{order:5}
+  .btn-new,.btn-logout{padding:9px 12px}
+  .crow{grid-template-columns:minmax(0,1fr) 118px;gap:8px;padding:12px 12px}
+  .stsel{padding:9px 6px}
+  .kc .n{font-size:21px}.tc-n{font-size:20px}
+}
 .btn-logout{background:transparent;border:1px solid var(--line);color:var(--muted);font-family:var(--f);font-weight:600;font-size:12.5px;padding:8px 12px;border-radius:9px;cursor:pointer;white-space:nowrap}
 .login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
 .login.show{display:flex}
