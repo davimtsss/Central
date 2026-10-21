@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1610';
+const BUILD='1021-1614';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -685,6 +685,14 @@ function tYm(t){const k=dmy(t.data);return k.length>=6?(k.slice(0,4)+'-'+k.slice
 function tSplit(t){const v=+t.valor||0;if(isCombo(t)){const p=(t.ppri!=null?+t.ppri:50)/100;return [[t.emp||'OnPro',v*p],[t.emp2,v*(1-p)]];}return [[t.emp||'—',v]];}
 function ymLbl(ym){const [y,m]=ym.split('-');return (MES[m]||m)+'/'+String(y).slice(2);}
 function dreCalc(ym){const r={};FLUXO.filter(t=>tYm(t)===ym).forEach(t=>tSplit(t).forEach(([e,v])=>{if(!r[e])r[e]={rec:0,cus:0};r[e][t.tipo==='Entrada'?'rec':'cus']+=v;}));return r;}
+function openDreDetail(emp){
+  const ym=drePer;const rows=[];
+  FLUXO.filter(t=>tYm(t)===ym).forEach(t=>tSplit(t).forEach(([e,v])=>{if(e===emp)rows.push({t,v});}));
+  const sec=(tipo,lbl)=>{const l=rows.filter(r=>r.t.tipo===tipo).sort((a,b)=>b.v-a.v);if(!l.length)return '';const tot=l.reduce((a,r)=>a+r.v,0);
+    return '<div class="pg-h">'+lbl+'<span class="pg-t">'+brl(tot)+'</span></div>'+l.map(r=>{const t=r.t;const rat=isCombo(t)?' · '+Math.round(r.v/(+t.valor||1)*100)+'% de '+brl(t.valor):'';return '<div class="pg-r" style="cursor:pointer" onclick="closeOv();tab=\'fluxo\';renderActive();setTimeout(()=>openFluxoForm(\''+t.id+'\'),50)"><span class="pg-n">'+esc(t.desc||t.cat||'—')+'<small>'+esc(t.data)+' · '+esc(t.cat||'')+(t.conta?' · '+esc(t.conta):'')+rat+'</small></span><span class="pg-v">'+brl(r.v)+'</span></div>';}).join('');};
+  document.getElementById('modal').innerHTML='<h3>'+esc(emp)+' · '+ymLbl(ym)+'</h3><div class="pg-total">'+rows.length+' lançamentos do Fluxo · clique num pra abrir/editar</div>'+sec('Entrada','Receita')+sec('Saída','Custos')+(rows.length?'':'<div class="empty">Nada neste mês.</div>')+'<div class="fbtns" style="margin-top:14px"><button class="tb" onclick="closeOv()">Fechar</button></div>';
+  document.getElementById('ov').classList.add('open');
+}
 function renderDRE(){
   if(!floaded){document.getElementById('content').innerHTML='<div class="state">Carregando fluxo…</div>';return;}
   const meses=[...new Set(FLUXO.map(tYm).filter(Boolean))].sort().reverse();if(!meses.includes(ymNow()))meses.unshift(ymNow());
@@ -692,7 +700,7 @@ function renderDRE(){
   const sel='<select class="fi" style="max-width:160px;padding:8px 10px" onchange="drePer=this.value;renderDRE()">'+meses.map(m=>'<option value="'+m+'"'+(m===drePer?' selected':'')+'>'+ymLbl(m)+'</option>').join('')+'</select>';
   const r=dreCalc(drePer);const emps=EMPS3.concat(Object.keys(r).filter(e=>!EMPS3.includes(e)));
   const cell=(n,b)=>'<span class="'+(n>=0?'pos':'neg')+(b?' b':'')+'">'+brl(n)+'</span>';
-  const row=(e,o,cls)=>{const res=o.rec-o.cus;const mg=o.rec>0?Math.round(res/o.rec*100):null;return '<div class="dr '+(cls||'')+'"><span class="de"><span class="dot" style="background:'+(EMPCOL[sk(e)]||'#9aa3ad')+'"></span>'+esc(e)+'</span><span>'+brl(o.rec)+'</span><span>'+brl(o.cus)+'</span>'+cell(res,true)+'<span>'+(mg==null?'—':mg+'%')+'</span></div>';};
+  const row=(e,o,cls)=>{const res=o.rec-o.cus;const mg=o.rec>0?Math.round(res/o.rec*100):null;return '<div class="dr '+(cls||'')+'"'+(cls?'':' style="cursor:pointer" onclick="openDreDetail(\''+esc(e)+'\')"')+'><span class="de"><span class="dot" style="background:'+(EMPCOL[sk(e)]||'#9aa3ad')+'"></span>'+esc(e)+'</span><span>'+brl(o.rec)+'</span><span>'+brl(o.cus)+'</span>'+cell(res,true)+'<span>'+(mg==null?'—':mg+'%')+'</span></div>';};
   const tot={rec:0,cus:0};emps.forEach(e=>{const o=r[e]||{rec:0,cus:0};tot.rec+=o.rec;tot.cus+=o.cus;});
   const tbl='<div class="dre-t"><div class="dr h"><span>Empresa</span><span>Receita</span><span>Custos</span><span>Resultado</span><span>Margem</span></div>'+emps.map(e=>row(e,r[e]||{rec:0,cus:0})).join('')+row('Total',tot,'tot')+'</div>';
   const last=[];{const [y,m]=drePer.split('-');let d=new Date(+y,+m-1,1);for(let i=0;i<6;i++){last.unshift(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));d.setMonth(d.getMonth()-1);}}
