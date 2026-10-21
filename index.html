@@ -152,6 +152,17 @@ h1,h2,h3{margin:0;font-weight:700}
 .tar-add .fi{flex:1}.tar-add .save{padding:10px 14px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:var(--f);font-weight:600;cursor:pointer;white-space:nowrap}
 .tar-sep{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 4px}
 .tar-sep a{color:var(--accent)}
+/* custos: tabela estilo KJ */
+.krow{display:grid;grid-template-columns:minmax(0,1fr) 92px 84px 110px 150px;gap:12px;align-items:center;padding:11px 15px;border-bottom:1px solid var(--line);font-size:14px}
+.krow:last-child{border-bottom:none}
+.krow.h{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--bg)}
+.krow .k-nm{cursor:pointer;min-width:0}
+.krow .k-venc,.krow .k-parc{color:var(--muted);cursor:pointer;white-space:nowrap}
+.krow .k-venc small{display:block;color:var(--red);font-weight:600;font-size:10.5px;text-transform:none}
+.krow .k-parc{font-weight:700;color:var(--accent)}
+.krow .k-val{font-weight:700;text-align:right;white-space:nowrap;cursor:pointer}
+.krow.late .k-val{color:var(--red)}
+@media(max-width:820px){.krow{grid-template-columns:minmax(0,1fr) 72px 118px;gap:8px;padding:11px 12px}.krow .k-parc,.krow .k-venc{display:none}.krow.h span:nth-child(2),.krow.h span:nth-child(3){display:none}}
 /* celular: evita o zoom automático do iOS (campos < 16px) e corta qualquer vazamento lateral */
 html,body{overflow-x:hidden;max-width:100%}
 @media(max-width:600px){
@@ -256,7 +267,7 @@ async function loadClientes(){
 async function loadFluxo(){
   const {data,error}=await sb.from('fluxo').select('*');
   if(error){console.warn(error);return;}
-  const items=(data||[]).map(r=>({id:r.id,data:r.data,mes:r.mes,tipo:r.tipo,emp:r.emp,cat:r.cat,desc:r.descricao,valor:Number(r.valor)||0,forma:r.forma,classe:r.classe||'',fim:!!r.fim,pg:r.pg||0,tt:r.tt||0,emp2:r.emp2||'',ppri:(r.ppri!=null?r.ppri:50)}));
+  const items=(data||[]).map(r=>({id:r.id,data:r.data,mes:r.mes,tipo:r.tipo,emp:r.emp,cat:r.cat,desc:r.descricao,valor:Number(r.valor)||0,forma:r.forma,classe:r.classe||'',fim:!!r.fim,pg:r.pg||0,tt:r.tt||0,emp2:r.emp2||'',ppri:(r.ppri!=null?r.ppri:50),conta:r.conta||''}));
   if(fluCb)fluCb({data:()=>({items})});
 }
 async function loadCustos(){
@@ -380,7 +391,7 @@ function setFTipo(v){fTipo=v;renderFluxo();}
 function txTable(list,showPill){
   const ent=list.filter(t=>t.tipo==='Entrada').reduce((a,t)=>a+(+t.valor||0),0);
   const sai=list.filter(t=>t.tipo==='Saída').reduce((a,t)=>a+(+t.valor||0),0);
-  const rows=list.map(t=>{const e=t.tipo==='Entrada';return '<div class="tr" onclick="openFluxoForm(\''+t.id+'\')"><span class="dt">'+esc(t.data)+'</span><span class="ds">'+esc(t.desc||t.cat)+'</span><span class="pill2 hc">'+esc(t.cat||'')+'</span><span class="em hf">'+esc(t.emp||'')+'</span><span class="am '+(e?'e':'s')+'">'+(e?'+':'−')+brl(t.valor)+'</span></div>';}).join('');
+  const rows=list.map(t=>{const e=t.tipo==='Entrada';return '<div class="tr" onclick="openFluxoForm(\''+t.id+'\')"><span class="dt">'+esc(t.data)+'</span><span class="ds">'+esc(t.desc||t.cat)+'</span><span class="pill2 hc">'+esc(t.cat||'')+'</span><span class="em hf">'+esc(t.emp||'')+(t.conta?' · '+esc(t.conta):'')+'</span><span class="am '+(e?'e':'s')+'">'+(e?'+':'−')+brl(t.valor)+'</span></div>';}).join('');
   return {ent,sai,html:'<div class="tbl"><div class="tr h"><span>Data</span><span>Descrição</span><span class="hc">Categoria</span><span class="hf">Frente</span><span style="text-align:right">Valor</span></div>'+(rows||'<div class="empty">Nada aqui. Clica em <b>+ Lançamento</b>.</div>')+'</div>'};
 }
 function renderFluxo(){
@@ -408,16 +419,17 @@ function statusCusto(c){if(c.mespg===ymNow())return 'Pago';if(custoLate(c)>=1)re
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
 async function setCustoStatus(id,val){const c=CUSTOS.find(x=>x.id===id);if(!c)return;if(val==='Atrasado')return;try{if(val==='Pago'){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);await sbw(()=>sb.from('custos').update({status:'Pago',mespg:ymNow(),pg:pg}).eq('id',id));toast('Pago'+(tt>0?' '+pg+'/'+tt:''));}else{await sbw(()=>sb.from('custos').update({status:val,mespg:null}).eq('id',id));toast(val);}await loadCustos();}catch(e){toast('Erro ao salvar');}}
 function custoRow(c){
-  const pc=(+c.tt>0)?((+c.pg||0)+'/'+(+c.tt)):'';
-  const emp=(c.emp2&&c.emp2!=='Não'&&c.emp2!==''&&c.emp2!==c.emp)?(c.emp+' / '+c.emp2):(c.emp||'');
-  const m=['<span><b>'+brl(c.valor)+'</b></span>'];
-  if(c.venc)m.push('<span>venc dia '+c.venc+'</span>');
-  if(pc)m.push('<span><b style="color:var(--accent)">'+pc+'</b> parc</span>');
-  m.push('<span>'+esc(emp)+'</span>');
-  if(c.obs)m.push('<span>📝</span>');
-  return '<div class="crow"><div class="cl-main" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+esc(c.descricao||'')+'</div><div class="cl-meta">'+m.join('')+'</div></div>'+custoStatusSel(c)+'</div>';
+  const pc=(+c.tt>0)?((+c.pg||0)+'/'+(+c.tt)):'—';
+  const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');
+  const late=custoLate(c)>=1&&statusCusto(c)!=='Pago';
+  const sub=[c.descricao,emp].filter(Boolean).map(esc).join(' · ')+(c.obs?' 📝':'');
+  return '<div class="krow'+(late?' late':'')+'"><div class="k-nm" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+sub+'</div></div>'
+    +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>atrasada</small>':'')+'</div>'
+    +'<div class="k-parc" onclick="openCustoForm(\''+c.id+'\')">'+pc+'</div>'
+    +'<div class="k-val" onclick="openCustoForm(\''+c.id+'\')">'+brl(c.valor)+'</div>'
+    +'<div class="k-st">'+custoStatusSel(c)+'</div></div>';
 }
-function custosList(list){return '<div class="ctbl"><div class="crow h"><span>Custo · por vencimento</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
+function custosList(list){return '<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
 function renderCustos(){
   if(sb&&!custoLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando custos…</div>';return;}
   const q=sk(document.getElementById('q').value||'');
@@ -494,6 +506,8 @@ async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;con
 /* FLUXO form */
 /* empresa + rateio (fluxo e custos) */
 const COMBO='OnPro e ADmídia';
+const CONTAS_BASE=['Cora','Asaas','Infinity Pay','Dinheiro','Cartão de crédito'];
+function contasList(cur){const s=new Set(CONTAS_BASE);FLUXO.forEach(t=>{if(t.conta)s.add(t.conta);});if(cur)s.add(cur);return [...s];}
 function isCombo(t){return !!(t&&t.emp2&&t.emp2!=='Não'&&t.emp2!=='');}
 function empSel(id,t){t=t||{};const legacy=(t.emp&&!['OnPro','ADmídia','ADled'].includes(t.emp)&&!isCombo(t))?[t.emp]:[];const opts=['OnPro','ADmídia','ADled',COMBO].concat(legacy);const v=isCombo(t)?COMBO:(t.emp||'ADmídia');return '<select class="fi" id="'+id+'-emp" onchange="toggleRateio(\''+id+'\')">'+opts.map(x=>'<option '+(x===v?'selected':'')+'>'+x+'</option>').join('')+'</select>';}
 function rateioHtml(id,t){t=t||{};const on=isCombo(t);const pct=on?(t.emp==='ADmídia'?(100-(+t.ppri||50)):(+t.ppri||50)):50;return '<div id="'+id+'-rateio" style="display:'+(on?'block':'none')+'"><div class="flg">% pra OnPro (o resto vai pra ADmídia)</div><input class="fi" id="'+id+'-ppri" type="number" min="0" max="100" value="'+pct+'" placeholder="ex: 80"></div>';}
@@ -508,6 +522,7 @@ function openFluxoForm(id){
     '<div class="flg">Descrição (nome)</div><input class="fi" id="x-desc" value="'+esc(t.desc||'')+'" placeholder="Ex: Gasolina, Salário Gabi...">'+
     '<div class="ff"><div><div class="flg">Categoria</div>'+sel('cat',CATS,t.cat||'Outros')+'</div><div><div class="flg">Empresa</div>'+empSel('x',t)+'</div></div>'+
     '<div class="ff"><div><div class="flg">Valor (R$)</div><input class="fi" id="x-valor" type="number" value="'+(t.valor||'')+'"></div><div><div class="flg">Forma de pagamento</div>'+sel('forma',FORMAS,t.forma||'Pix')+'</div></div>'+
+    '<div class="flg">Banco / conta</div>'+sel('conta',contasList(t.conta),t.conta||'Cora')+
     '<div class="ff"><div><div class="flg">Grupo do custo</div>'+sel('classe',['Variável','Fixo','Salário','Investimento'],t.classe||'Variável')+'</div><div><div class="flg">Parcelas pagas / total</div><div style="display:flex;gap:6px"><input class="fi" id="x-pg" type="number" placeholder="pagas" value="'+(t.pg?t.pg:'')+'"><input class="fi" id="x-tt" type="number" placeholder="total" value="'+(t.tt?t.tt:'')+'"></div></div></div>'+
     rateioHtml('x',t)+
     '<div class="mbtns">'+(id&&CANW?'<button class="del-confirm" style="flex:.5" onclick="delFluxo(\''+id+'\')">Excluir</button>':'')+(id?'<button class="cancel" style="flex:.85" onclick="toggleFim(\''+id+'\')">'+(t.fim?'↩ Reativar':'✓ Acabou')+'</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveFluxo()">Salvar</button></div>';
@@ -518,9 +533,9 @@ async function saveFluxo(){
   const g=n=>document.getElementById('x-'+n).value.trim();
   const iso=g('data');const data=isoToDmy(iso);
   const old=fEditId?FLUXO.find(x=>x.id===fEditId):null;const E=readEmp('x');
-  const it={id:fEditId||('f'+Date.now()),data:data,mes:(iso?iso.split('-')[1]:''),tipo:g('tipo'),desc:g('desc'),cat:g('cat'),emp:E.emp,valor:parseFloat(g('valor'))||0,forma:g('forma'),classe:g('classe')||'Variável',pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,fim:old?!!old.fim:false,emp2:E.emp2,ppri:E.ppri};
+  const it={id:fEditId||('f'+Date.now()),data:data,mes:(iso?iso.split('-')[1]:''),tipo:g('tipo'),desc:g('desc'),cat:g('cat'),emp:E.emp,valor:parseFloat(g('valor'))||0,forma:g('forma'),conta:g('conta'),classe:g('classe')||'Variável',pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,fim:old?!!old.fim:false,emp2:E.emp2,ppri:E.ppri};
   if(!it.desc&&!it.valor){toast('Põe descrição e valor');return;}
-  const row={id:it.id,data:it.data,mes:it.mes,tipo:it.tipo,emp:it.emp,cat:it.cat,descricao:it.desc,valor:it.valor,forma:it.forma,classe:it.classe,pg:it.pg,tt:it.tt,fim:it.fim,emp2:it.emp2,ppri:it.ppri};
+  const row={id:it.id,data:it.data,mes:it.mes,tipo:it.tipo,emp:it.emp,cat:it.cat,descricao:it.desc,valor:it.valor,forma:it.forma,conta:it.conta||'',classe:it.classe,pg:it.pg,tt:it.tt,fim:it.fim,emp2:it.emp2,ppri:it.ppri};
   try{await sbw(()=>sb.from('fluxo').upsert(row));toast(fEditId?'Salvo':'Lançamento adicionado');closeOv();await loadFluxo();}catch(e){toast('Erro ao salvar — tenta de novo');}
 }
 async function toggleFim(id){const t=FLUXO.find(x=>x.id===id);if(!t)return;try{const{error}=await sb.from('fluxo').update({fim:!t.fim}).eq('id',id);if(error)throw error;toast(t.fim?'Reativado':'Finalizado ✓');closeOv();await loadFluxo();}catch(e){toast('Erro');}}
