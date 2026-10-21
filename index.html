@@ -238,6 +238,8 @@ let DMD=[],dmLoaded=false,dmEditId=null,dmPer='';const LIMITE_SOCIO=4000;const S
 let ASAAS=null,asaasLoaded=false,asaasErr='',ASAAS_AGG=[];
 let TAREFAS=[],tarLoaded=false;
 function withTimeout(p,ms){return Promise.race([Promise.resolve(p),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);}
+function toastErr(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),5000);}
+async function upsertSafe(table,row){let r=Object.assign({},row);for(let i=0;i<5;i++){let res;try{res=await withTimeout(sb.from(table).upsert(r),8000);}catch(e){res={error:e};}if(!res||!res.error)return res;const msg=(res.error&&res.error.message)||'';const m=/'([^']+)' column/.exec(msg);if(m&&(m[1] in r)){delete r[m[1]];console.warn('salvando sem a coluna',m[1]);continue;}throw res.error;}throw new Error('não consegui salvar');}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
 function brl(n){return 'R$ '+(Math.round(Number(n))||0).toLocaleString('pt-BR');}
@@ -498,7 +500,7 @@ async function saveCusto(){
   const old=custEditId?CUSTOS.find(x=>x.id===custEditId):null;const E=readEmp('k');
   const row={id:custEditId||('cx'+Date.now()),grupo:g('grupo'),data:old?old.data:(new Date().toLocaleDateString('pt-BR')),fornecedor:g('fornecedor'),descricao:g('descricao'),emp:E.emp,emp2:E.emp2,ppri:E.ppri,forma:g('forma'),valor:parseFloat(g('valor'))||0,venc:parseInt(g('venc'))||null,pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,status:g('status'),fim:old?!!old.fim:false,obs:g('obs'),mespg:old?(old.mespg||ymNow()):ymNow()};
   if(!row.fornecedor&&!row.descricao){toast('Põe fornecedor ou descrição');return;}
-  try{await sbw(()=>sb.from('custos').upsert(row));toast(custEditId?'Salvo':'Custo adicionado');closeOv();await loadCustos();}catch(e){console.warn('saveCusto',e);toast('Erro ao salvar — tenta de novo');}
+  try{await upsertSafe('custos',row);toast(custEditId?'Salvo ✓':'Custo adicionado ✓');closeOv();await loadCustos();}catch(e){console.warn('saveCusto',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
 async function delCusto(id){try{const{error}=await sb.from('custos').delete().eq('id',id);if(error)throw error;toast('Excluído');closeOv();await loadCustos();}catch(e){toast('Erro');}}
 async function toggleCustoFim(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try{const{error}=await sb.from('custos').update({fim:!c.fim}).eq('id',id);if(error)throw error;toast(c.fim?'Reativado':'Encerrado ✓');closeOv();await loadCustos();}catch(e){toast('Erro');}}
@@ -536,7 +538,7 @@ async function saveFluxo(){
   const it={id:fEditId||('f'+Date.now()),data:data,mes:(iso?iso.split('-')[1]:''),tipo:g('tipo'),desc:g('desc'),cat:g('cat'),emp:E.emp,valor:parseFloat(g('valor'))||0,forma:g('forma'),conta:g('conta'),classe:g('classe')||'Variável',pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,fim:old?!!old.fim:false,emp2:E.emp2,ppri:E.ppri};
   if(!it.desc&&!it.valor){toast('Põe descrição e valor');return;}
   const row={id:it.id,data:it.data,mes:it.mes,tipo:it.tipo,emp:it.emp,cat:it.cat,descricao:it.desc,valor:it.valor,forma:it.forma,conta:it.conta||'',classe:it.classe,pg:it.pg,tt:it.tt,fim:it.fim,emp2:it.emp2,ppri:it.ppri};
-  try{await sbw(()=>sb.from('fluxo').upsert(row));toast(fEditId?'Salvo':'Lançamento adicionado');closeOv();await loadFluxo();}catch(e){toast('Erro ao salvar — tenta de novo');}
+  try{await upsertSafe('fluxo',row);toast(fEditId?'Salvo ✓':'Lançamento adicionado ✓');closeOv();await loadFluxo();}catch(e){console.warn('saveFluxo',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
 async function toggleFim(id){const t=FLUXO.find(x=>x.id===id);if(!t)return;try{const{error}=await sb.from('fluxo').update({fim:!t.fim}).eq('id',id);if(error)throw error;toast(t.fim?'Reativado':'Finalizado ✓');closeOv();await loadFluxo();}catch(e){toast('Erro');}}
 async function delFluxo(id){try{const{error}=await sb.from('fluxo').delete().eq('id',id);if(error)throw error;toast('Excluído');closeOv();await loadFluxo();}catch(e){toast('Erro');}}
@@ -577,7 +579,7 @@ async function saveDM(){
   const old=dmEditId?DMD.find(x=>x.id===dmEditId):null;
   const row={id:dmEditId||('dm'+Date.now()),mes:(iso?iso.slice(0,7):(old?old.mes:(dmPer||ymNow()))),pessoa:g('pessoa'),data:data,descricao:g('desc'),valor:parseFloat(g('valor'))||0};
   if(!row.valor){toast('Põe o valor');return;}
-  try{await sbw(()=>sb.from('dm').upsert(row));toast(dmEditId?'Salvo':'Lançado');closeOv();await loadDM();}catch(e){toast('Erro ao salvar — tenta de novo');}
+  try{await upsertSafe('dm',row);toast(dmEditId?'Salvo ✓':'Lançado ✓');closeOv();await loadDM();}catch(e){console.warn('saveDM',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
 async function delDM(id){try{await sbw(()=>sb.from('dm').delete().eq('id',id));toast('Excluído');closeOv();await loadDM();}catch(e){toast('Erro');}}
 function renderDRE(){
