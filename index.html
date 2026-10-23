@@ -303,7 +303,7 @@ function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1021-1744';
+const BUILD='1023-1352';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -391,8 +391,8 @@ function renderOverview(){
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
   const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago','cancelado'].includes(sk(c.status))).map(c=>({c,late:Math.max(0,ymDiff(c.mespg,ymNow())),urg:['naopago','urgente'].includes(sk(c.status))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
   const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago').map(c=>{const v=+c.venc;let k=9,lbl='';if(v<td){k=0;lbl='atrasada '+(td-v)+'d';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
-  let maxD=null;FLUXO.forEach(t=>{const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(!maxD||d>maxD)maxD=d;}});
-  const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>2);
+  let maxD=null;FLUXO.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(!maxD||d>maxD)maxD=d;}});
+  const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>=2);
   const mm=ymNow().split('-')[1];const tx=FLUXO.filter(t=>t.mes===mm);
   const ent=tx.filter(t=>t.tipo==='Entrada').reduce((a,t)=>a+(+t.valor||0),0);
   const sai=tx.filter(t=>t.tipo==='Saída').reduce((a,t)=>a+(+t.valor||0),0);
