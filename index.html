@@ -313,7 +313,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1658';
+const BUILD='1026-1704';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -796,22 +796,30 @@ function shareZap(){window.open('https://wa.me/?text='+encodeURIComponent(docume
 function sharePrint(){const rows=shareRows();const tot=rows.reduce((a,r)=>a+r.dev,0);const w=window.open('','_blank');if(!w){toast('Libera pop-up pra imprimir');return;}
   w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+shareMarca()+' · '+shareTitle()+'</title><style>body{font-family:Montserrat,-apple-system,Helvetica,Arial,sans-serif;padding:28px;color:#1a1f2b}h1{font-size:20px;margin:0 0 4px}.sub{color:#667;margin-bottom:18px}table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#667;padding:8px 6px;border-bottom:2px solid #dde}td{padding:10px 6px;border-bottom:1px solid #e8ebf0}td.r,th.r{text-align:right}.late{color:#c0392b;font-weight:700}tfoot td{font-weight:800;border-top:2px solid #1a1f2b}@media print{body{padding:0}}<\/style></head><body><h1>Cobranças '+shareMarca()+' · '+shareTitle()+'</h1><div class="sub">'+new Date().toLocaleDateString('pt-BR')+' · '+rows.length+' clientes</div><table><thead><tr><th>#</th><th>Cliente</th><th>Atraso</th><th class="r">Devendo</th></tr></thead><tbody>'+rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(r.nome)+'</b></td><td class="'+(r.nv?'late':'')+'">'+(r.nv?r.nv+' '+(r.nv>1?r.unid:r.unid.slice(0,-1)):'—')+'</td><td class="r">'+brl(r.dev)+'</td></tr>').join('')+'</tbody><tfoot><tr><td colspan="3">Total</td><td class="r">'+brl(tot)+'</td></tr></tfoot></table><script>setTimeout(()=>window.print(),300)<\/script></body></html>');w.document.close();}
 // ===== Cliente Pago → Entrada ADmídia no Fluxo (sempre Cora) =====
-function cliFluxoDesc(c,pg){const tt=+c.tt||0;return (c.empresa||'Cliente')+(tt>0?' · parcela '+pg+'/'+tt:' · mensalidade');}
+function cliFluxoDesc(c,pg,ref){const tt=+c.tt||0;return (c.empresa||'Cliente')+(tt>0?' · parcela '+pg+'/'+tt:' · mensalidade'+(ref&&ref!==ymNow()?' '+ymLabel(ref):''));}
 function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
 function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());const k=sk(c.empresa||'');if(!k)return true;return FLUXO.find(t=>t.tipo==='Entrada'&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));}
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
-function cliNoFluxo(c,pg){const desc=cliFluxoDesc(c,pg);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
+function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
-async function lancarCliNoFluxo(c,pg){if(!(+c.valor>0)||cliNoFluxo(c,pg))return false;const now=new Date();
-  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:'Variável',pg:0,tt:0,fim:false};
+async function lancarCliNoFluxo(c,pg,ref){if(!(+c.valor>0)||cliNoFluxo(c,pg,ref))return false;const now=new Date();
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:'Variável',pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
 async function removerCliDoFluxo(c,pg){const t=cliNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
-async function cliPago(c){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
-  await DB.collection('clientes').doc(c.id).update({status:'Pago',pg:pg,mespg:ymNow()});
+// deve 2+ meses: cada 'Pago' quita só a mensalidade mais antiga
+function planPago(c){const tt=+c.tt||0,s0=sk(c.status),late=cliLate(c);
+  if(late>=2){const oldest=(s0==='pago')?ymAdd(cliMesPg(c),1):c.mespg;const pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);return {parcial:true,late,ref:oldest,pg,upd:{status:(s0==='pago'?'Em aberto':c.status),pg:pg,mespg:ymAdd(oldest,1)}};}
+  const was=s0==='pago'&&c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);return {parcial:false,late,ref:null,pg,upd:{status:'Pago',pg:pg,mespg:ymNow()}};}
+async function cliPago(c){const P=planPago(c),tt=+c.tt||0,pg=P.pg;
+  if(P.parcial){await DB.collection('clientes').doc(c.id).update(P.upd);let l=false,err=false;try{l=await lancarCliNoFluxo(c,pg,P.ref);}catch(e){err=true;diag('entrada auto falhou: '+(e&&e.message));}
+    await loadFluxo();if(err)toastErr('Pago, mas a entrada no fluxo não foi. Lança no Fluxo de caixa.');else toast('Pago 1 mensalidade ('+ymLabel(P.ref)+') · ainda deve '+(P.late-1)+(l?' · entrada no fluxo ✓':''));return pg;}
+  await DB.collection('clientes').doc(c.id).update(P.upd);
   let l=false,err=false;try{l=await lancarCliNoFluxo(c,pg);}catch(e){err=true;diag('entrada auto falhou: '+(e&&e.message));}
   await loadFluxo();if(err)toastErr('Pago, mas a entrada no fluxo não foi. Toque em "lançar" no cliente.');else toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · entrada no fluxo ✓':' · já estava no fluxo'));return pg;}
-async function cliDesmarcar(c,val){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
-  await DB.collection('clientes').doc(c.id).update({status:val,pg:pg,mespg:null});
+function planDesmarcar(c,val){const s0=sk(c.status),was=s0==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);const upd={status:val,pg:pg};
+  if(s0==='pago')upd.mespg=(was||!c.mespg)?ymNow():ymAdd(c.mespg,1);return {was,pg,upd};}
+async function cliDesmarcar(c,val){const D=planDesmarcar(c,val),was=D.was,tt=+c.tt||0,pg=D.pg;
+  await DB.collection('clientes').doc(c.id).update(D.upd);
   let r=false;if(was){try{r=await removerCliDoFluxo(c,+c.pg||0);}catch(e){diag('remover entrada falhou: '+(e&&e.message));}}
   toast(val+(r?' · entrada removida do fluxo':''));await loadFluxo();}
 async function setStSel(id,val){const c=CLIENTES.find(x=>x.id===id);if(!c)return;try{if(sk(val)==='pago')await cliPago(c);else await cliDesmarcar(c,val);}catch(e){writeErr(e);}}
