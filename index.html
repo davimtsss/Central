@@ -302,11 +302,13 @@ function refreshMeses(){const s=new Set(FLUXO.map(t=>t.mes).filter(Boolean));MES
 function ymNow(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).split('-');return (pb[0]-pa[0])*12+(pb[1]-pa[1]);}
 // atraso calculado pela data de vencimento (não depende de trocar o status na mão)
-function cliLate(c){const s=sk(c.status);if(s==='permuta'||s==='cancelado')return 0;const now=ymNow(),d=parseInt(c.venc)||0,td=new Date().getDate();if(c.mespg){if(c.mespg>=now)return 0;let n=ymDiff(c.mespg,now);if(d&&td<=d)n-=1;return Math.max(0,n);}if(s==='pago')return 0;return (d&&td>d)?1:0;}
-function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&c.mespg&&c.mespg<ymNow())return 'emaberto';return s;}
+// 'Pago' antigo sem mês registrado conta como pago em out/2026
+function cliMesPg(c){return c.mespg||(sk(c.status)==='pago'?'2026-10':null);}
+function cliLate(c){const s=sk(c.status);if(s==='permuta'||s==='cancelado')return 0;const now=ymNow(),d=parseInt(c.venc)||0,td=new Date().getDate(),mp=cliMesPg(c);if(mp){if(mp>=now)return 0;let n=ymDiff(mp,now);if(d&&td<=d)n-=1;return Math.max(0,n);}return (d&&td>d)?1:0;}
+function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1101';
+const BUILD='1026-1115';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
