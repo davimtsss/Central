@@ -313,7 +313,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1714';
+const BUILD='1026-1716';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -438,13 +438,20 @@ async function syncAsaasFluxo(){if(asaasSyncing||!floaded||!ASAAS||!Array.isArra
   try{
     // remove linhas por pagamento criadas pela versão anterior (evita contar duas vezes)
     for(const t of FLUXO.filter(t=>/^asaas_pay/.test(t.id))){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}
-    const porMes={};ASAAS.recebidos.forEach(p=>{const ym=(p.data||'').slice(0,7);if(ym>=ASAAS_SYNC_DESDE)porMes[ym]=(porMes[ym]||0)+(+p.valor||0);});
-    const hoje=new Date();const ymHoje=ymNow();
-    for(const ym of Object.keys(porMes)){const v=Math.round(porMes[ym]*100)/100;const id='asaas_mes_'+ym;const [y,m]=ym.split('-');const atual=FLUXO.find(t=>t.id===id);
+    // uma linha por DIA, com a data real do recebimento (id fixo por dia: atualiza, nunca duplica)
+    const porDia={};ASAAS.recebidos.forEach(p=>{const d=(p.data||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d.slice(0,7)>=ASAAS_SYNC_DESDE)porDia[d]=(porDia[d]||0)+(+p.valor||0);});
+    const ini=new Date();ini.setDate(ini.getDate()-44);const janela=ini.getFullYear()+'-'+String(ini.getMonth()+1).padStart(2,'0')+'-'+String(ini.getDate()).padStart(2,'0');
+    const mesesCobertos=new Set(Object.keys(porDia).map(d=>d.slice(0,7)).filter(ym=>janela<=ym+'-01'));
+    let n=0;
+    for(const d of Object.keys(porDia).sort()){const ym=d.slice(0,7);
+      if(FLUXO.find(t=>t.id==='asaas_mes_'+ym)&&!mesesCobertos.has(ym))continue; // mês antigo já fechado no total mensal
+      const v=Math.round(porDia[d]*100)/100;const id='asaas_dia_'+d;const atual=FLUXO.find(t=>t.id===id);
       if(atual&&Math.abs((+atual.valor||0)-v)<0.01)continue;
-      const data=(ym===ymHoje)?hoje.toLocaleDateString('pt-BR'):(String(ultimoDia(y,m)).padStart(2,'0')+'/'+m+'/'+y);
-      await upsertSafe('fluxo',{id,data,mes:m,tipo:'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:'Mensalidade/Assinatura',descricao:'Entrada total OnPro (Asaas)',valor:v,forma:'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;
-      if(!atual)toast('Entrada OnPro de '+ymLbl(ym)+' lançada: '+brl(v));else toast('Entrada OnPro de '+ymLbl(ym)+' atualizada: '+brl(v));}
+      const [y,m,dd]=d.split('-');
+      await upsertSafe('fluxo',{id,data:dd+'/'+m+'/'+y,mes:m,tipo:'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:'Mensalidade/Assinatura',descricao:'Recebimentos OnPro (Asaas)',valor:v,forma:'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;n++;}
+    // tira a linha de total mensal dos meses que agora estão dia a dia
+    for(const ym of mesesCobertos){const t=FLUXO.find(t=>t.id==='asaas_mes_'+ym);if(t){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
+    if(n)toast('Entradas OnPro (Asaas) atualizadas dia a dia');
     if(mudou)await loadFluxo();
   }catch(e){diag('sync asaas falhou: '+(e&&e.message));}finally{asaasSyncing=false;}}
 async function loadAsaas(){if(!sb)return;try{const tok=await authToken();if(!tok)throw new Error('sem login');const r=await fetchT(SB_URL+'/functions/v1/bright-action',{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:'{}'},25000);let data=null;try{data=await r.json();}catch(_){}if(!r.ok)throw new Error((data&&data.error)||('HTTP '+r.status));if(data&&data.error)throw new Error(data.error);ASAAS=data;asaasErr='';syncAsaasFluxo();}catch(e){console.warn('asaas',e);asaasErr=(e&&e.message)||'erro';}asaasLoaded=true;if(tab==='overview'||(tab==='clientes'&&cfiltro==='onpro'))renderActive();}
