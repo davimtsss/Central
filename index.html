@@ -313,7 +313,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1220';
+const BUILD='1026-1639';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -517,9 +517,11 @@ function setCClasse(c){cClasse=c;renderCustos();}
 function setCPeriodo(v){cPeriodo=v;renderCustos();}
 function monthOpts(n){const out=[];const d=new Date();for(let i=0;i<n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2),k:i});}return out;}
 function custoAtivoK(c,k){if(c.fim)return false;if(c.grupo==='Investimento'&&(+c.tt||0)>0)return ((+c.tt||0)-(+c.pg||0))>k;return true;}
-function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,today=new Date().getDate(),ml=Math.max(0,ymDiff(c.mespg,ymNow()));if(ml>=1)return ml;if(d&&today>d&&(c.mespg||'')<ymNow())return 1;return 0;}
+function custoPagoMes(c){return sk(c.status)==='pago'&&(c.mespg||ymNow())>=ymNow();}
+// Pago: mespg = mês pago. Outros status: mespg = mês da conta pendente (o form grava o mês atual ao criar)
+function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,now=ymNow(),venceu=(d&&new Date().getDate()>d)?1:0;if(sk(c.status)==='pago'){const mp=c.mespg||now;if(mp>=now)return 0;return Math.max(0,ymDiff(mp,now)-1+venceu);}if(c.mespg&&c.mespg>now)return 0;const base=(c.mespg&&c.mespg<now)?ymDiff(c.mespg,now):0;return base+venceu;}
 function custoEmpresa(list){const e={};list.forEach(c=>{const v=+c.valor||0;if(c.emp2&&c.emp2!=='Não'&&c.emp2!==''&&c.emp2!==c.emp){const p=(c.ppri!=null?+c.ppri:50)/100;e[c.emp||'—']=(e[c.emp||'—']||0)+v*p;e[c.emp2]=(e[c.emp2]||0)+v*(1-p);}else{const k=c.emp||'—';e[k]=(e[k]||0)+v;}});return e;}
-function statusCusto(c){if(c.mespg===ymNow())return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
+function statusCusto(c){if(custoPagoMes(c))return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
 // ===== Pago em Custos → lança automaticamente no Fluxo (e desfaz se desmarcar) =====
 function custoFluxoDesc(c,pg){const tt=+c.tt||0;return (c.fornecedor||c.descricao||'Custo')+(tt>0?' · parcela '+pg+'/'+tt:'');}
@@ -530,11 +532,11 @@ async function lancarCustoNoFluxo(c,pg){if(custoNoFluxo(c,pg))return false;const
   const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Saída',emp:c.emp||'OnPro',emp2:c.emp2||'',ppri:(c.ppri!=null?+c.ppri:50),cat:custoCat(c),descricao:custoFluxoDesc(c,pg),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:(c.grupo==='Salário'?'Salário':c.grupo==='Investimento'?'Investimento':'Fixo'),pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
 async function removerCustoDoFluxo(c,pg){const t=custoNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
-async function marcarPago(c){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
+async function marcarPago(c){const tt=+c.tt||0,was=custoPagoMes(c),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
   await restWrite('PATCH','custos',{status:'Pago',mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(c.id));
   let l=false;try{l=await lancarCustoNoFluxo(c,pg);}catch(e){diag('fluxo auto falhou: '+(e&&e.message));}
   toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · lançado no fluxo ✓':''));await loadCustos();await loadFluxo();}
-async function desmarcarPago(c,val){const tt=+c.tt||0,was=c.mespg===ymNow(),pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
+async function desmarcarPago(c,val){const tt=+c.tt||0,was=custoPagoMes(c),pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
   await restWrite('PATCH','custos',{status:val,mespg:null,pg:pg},'id=eq.'+encodeURIComponent(c.id));
   let r=false;if(was){try{r=await removerCustoDoFluxo(c,+c.pg||0);}catch(e){diag('remover do fluxo falhou: '+(e&&e.message));}}
   toast(val+(r?' · removido do fluxo':''));await loadCustos();await loadFluxo();}
