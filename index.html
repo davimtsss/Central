@@ -313,7 +313,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1639';
+const BUILD='1026-1658';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -763,7 +763,8 @@ function crow(c){
   if(late>=2||(late===1&&!d))m.push('<span class="rd" style="font-weight:700">⚠ '+late+(late>1?' meses':' mês')+' em atraso</span>');
   if(c.valor)m.push('<span><b>'+brl(c.valor)+'</b>/mês</span>');
   if(tt>0)m.push('<span>'+(pg>=tt?('♻ '+pg+' meses'):(pg+'/'+tt+' parcelas'))+'</span>');
-  if(s==='pago')m.push('<span style="color:var(--green)">pago ✓</span>');else if(d&&s!=='permuta'&&c.mespg&&c.mespg>ymNow())m.push('<span>próxima cobrança '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</span>');else if(d&&s!=='permuta')m.push('<span class="'+(atr?'rd':'')+'"'+(late===1?' style="font-weight:700"':'')+'>'+(atr?(late===1?'⚠ venceu dia '+d+' · atrasado':'venceu dia '+d):'vence dia '+d)+'</span>');
+  if(s==='pago')m.push('<span style="color:var(--green)">pago ✓</span>');
+  if(s==='pago'&&sk(c.status)==='pago'&&c.mespg===ymNow()&&floaded&&(+c.valor>0)&&!cliFluxoMes(c))m.push('<span class="rd" style="font-weight:700">⚠ não está no fluxo'+(CANW?' · <a href="#" style="color:inherit" onclick="event.stopPropagation();lancarAgora(\''+c.id+'\');return false">lançar agora</a>':'')+'</span>');else if(d&&s!=='permuta'&&c.mespg&&c.mespg>ymNow())m.push('<span>próxima cobrança '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</span>');else if(d&&s!=='permuta')m.push('<span class="'+(atr?'rd':'')+'"'+(late===1?' style="font-weight:700"':'')+'>'+(atr?(late===1?'⚠ venceu dia '+d+' · atrasado':'venceu dia '+d):'vence dia '+d)+'</span>');
   if(c.forma)m.push('<span>'+esc(c.forma)+'</span>');
   if(c.contrato)m.push('<span>contrato '+esc(c.contrato)+'</span>');
   const opts=STATUSES.map(o=>'<option '+(sk(o)===s?'selected':'')+'>'+o+'</option>').join('');
@@ -797,6 +798,8 @@ function sharePrint(){const rows=shareRows();const tot=rows.reduce((a,r)=>a+r.de
 // ===== Cliente Pago → Entrada ADmídia no Fluxo (sempre Cora) =====
 function cliFluxoDesc(c,pg){const tt=+c.tt||0;return (c.empresa||'Cliente')+(tt>0?' · parcela '+pg+'/'+tt:' · mensalidade');}
 function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
+function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());const k=sk(c.empresa||'');if(!k)return true;return FLUXO.find(t=>t.tipo==='Entrada'&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));}
+async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
 function cliNoFluxo(c,pg){const desc=cliFluxoDesc(c,pg);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
 async function lancarCliNoFluxo(c,pg){if(!(+c.valor>0)||cliNoFluxo(c,pg))return false;const now=new Date();
@@ -805,8 +808,8 @@ async function lancarCliNoFluxo(c,pg){if(!(+c.valor>0)||cliNoFluxo(c,pg))return 
 async function removerCliDoFluxo(c,pg){const t=cliNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
 async function cliPago(c){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
   await DB.collection('clientes').doc(c.id).update({status:'Pago',pg:pg,mespg:ymNow()});
-  let l=false;try{l=await lancarCliNoFluxo(c,pg);}catch(e){diag('entrada auto falhou: '+(e&&e.message));}
-  toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · entrada no fluxo ✓':''));await loadFluxo();return pg;}
+  let l=false,err=false;try{l=await lancarCliNoFluxo(c,pg);}catch(e){err=true;diag('entrada auto falhou: '+(e&&e.message));}
+  await loadFluxo();if(err)toastErr('Pago, mas a entrada no fluxo não foi. Toque em "lançar" no cliente.');else toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · entrada no fluxo ✓':' · já estava no fluxo'));return pg;}
 async function cliDesmarcar(c,val){const was=sk(c.status)==='pago'&&c.mespg===ymNow(),tt=+c.tt||0,pg=(was&&tt>0)?Math.max((+c.pg||0)-1,0):(+c.pg||0);
   await DB.collection('clientes').doc(c.id).update({status:val,pg:pg,mespg:null});
   let r=false;if(was){try{r=await removerCliDoFluxo(c,+c.pg||0);}catch(e){diag('remover entrada falhou: '+(e&&e.message));}}
