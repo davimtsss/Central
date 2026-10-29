@@ -352,7 +352,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1026-1719';
+const BUILD='1029-1835';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -439,7 +439,7 @@ function renderOverview(){
   if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
   const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago','cancelado'].includes(effSt(c))).map(c=>({c,late:cliLate(c),urg:['naopago','urgente'].includes(effSt(c))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
-  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago').map(c=>{const v=+c.venc;let k=9,lbl='';if(v<td){k=0;lbl='atrasada '+(td-v)+'d';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
+  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
   let maxD=null;FLUXO.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(d<=today&&(!maxD||d>maxD))maxD=d;}});
   const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>=2);
   const mm=ymNow().split('-')[1];const tx=FLUXO.filter(t=>t.mes===mm);
@@ -563,7 +563,10 @@ const EMPCOL={onpro:'#e8922e',admidia:'#1569e0',adled:'#5aa06f',adview:'#7a8595'
 function setCClasse(c){cClasse=c;renderCustos();}
 function setCPeriodo(v){cPeriodo=v;renderCustos();}
 function monthOpts(n){const out=[];const d=new Date();for(let i=0;i<n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2),k:i});}return out;}
-function custoAtivoK(c,k){if(c.fim)return false;if(c.grupo==='Investimento'&&(+c.tt||0)>0)return ((+c.tt||0)-(+c.pg||0))>k;return true;}
+function custoOff(c){const now=ymNow();return (sk(c.status)!=='pago'&&c.mespg&&c.mespg>now)?ymDiff(now,c.mespg):0;}
+function custoAtivoK(c,k){if(c.fim)return false;const off=custoOff(c);if(k<off)return false;if(c.grupo==='Investimento'&&(+c.tt||0)>0)return ((+c.tt||0)-(+c.pg||0))>k-off;return true;}
+function proxCustoDefault(c){const now=ymNow();if(sk(c.status||'')==='pago')return ymAdd(c.mespg||now,1);return c.mespg||now;}
+function sugProxK(v){const d=parseInt(v)||0,sel=document.getElementById('k-prox');if(!sel||sel.dataset.mexeu)return;sel.value=(d&&new Date().getDate()>d)?ymAdd(ymNow(),1):ymNow();}
 function custoPagoMes(c){return sk(c.status)==='pago'&&(c.mespg||ymNow())>=ymNow();}
 // Pago: mespg = mês pago. Outros status: mespg = mês da conta pendente (o form grava o mês atual ao criar)
 function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,now=ymNow(),venceu=(d&&new Date().getDate()>d)?1:0;if(sk(c.status)==='pago'){const mp=c.mespg||now;if(mp>=now)return 0;return Math.max(0,ymDiff(mp,now)-1+venceu);}if(c.mespg&&c.mespg>now)return 0;const base=(c.mespg&&c.mespg<now)?ymDiff(c.mespg,now):0;return base+venceu;}
@@ -594,7 +597,7 @@ function custoRow(c){
   const late=custoLate(c)>=1&&statusCusto(c)!=='Pago';
   const sub=[c.descricao,emp].filter(Boolean).map(esc).join(' · ')+(c.obs?' 📝':'');
   return '<div class="krow'+(late?' late':'')+'"><div class="k-nm" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+sub+'</div></div>'
-    +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>atrasada</small>':'')+'</div>'
+    +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>atrasada</small>':(custoOff(c)&&c.venc?'<small style="color:var(--muted)">'+(+c.pg?'próxima':'1ª')+' '+String(c.venc).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</small>':''))+'</div>'
     +'<div class="k-parc" onclick="openCustoForm(\''+c.id+'\')">'+pc+'</div>'
     +'<div class="k-val" onclick="openCustoForm(\''+c.id+'\')">'+brl(c.valor)+'</div>'
     +'<div class="k-st">'+custoStatusSel(c)+'</div></div>';
@@ -650,7 +653,7 @@ function openProjMes(k){
   const f=monthOpts(6).find(x=>x.k===k);if(!f)return;
   const list=CUSTOS.filter(c=>custoAtivoK(c,k));const total=list.reduce((a,c)=>a+(+c.valor||0),0);
   const grp=g=>{const l=list.filter(c=>c.grupo===g).sort((a,b)=>(+b.valor||0)-(+a.valor||0));if(!l.length)return '';const t=l.reduce((a,c)=>a+(+c.valor||0),0);
-    return '<div class="pg-h"><span class="dot" style="background:'+(GCOL[sk(g)]||'#999')+'"></span>'+g+'<span class="pg-t">'+brl(t)+'</span></div>'+l.map(c=>{const rest=(+c.tt>0)?(' · '+Math.min((+c.pg||0)+k+1,+c.tt)+'/'+(+c.tt)):'';const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');return '<div class="pg-r"><span class="pg-n">'+esc(c.fornecedor||c.descricao)+'<small>'+esc(emp)+rest+'</small></span><span class="pg-v">'+brl(c.valor)+'</span></div>';}).join('');};
+    return '<div class="pg-h"><span class="dot" style="background:'+(GCOL[sk(g)]||'#999')+'"></span>'+g+'<span class="pg-t">'+brl(t)+'</span></div>'+l.map(c=>{const rest=(+c.tt>0)?(' · '+Math.min((+c.pg||0)+k-custoOff(c)+1,+c.tt)+'/'+(+c.tt)):'';const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');return '<div class="pg-r"><span class="pg-n">'+esc(c.fornecedor||c.descricao)+'<small>'+esc(emp)+rest+'</small></span><span class="pg-v">'+brl(c.valor)+'</span></div>';}).join('');};
   document.getElementById('modal').innerHTML='<h3>Custos previstos · '+f.lbl+'</h3><div class="pg-total">'+list.length+' custos · <b>'+brl(total)+'</b></div>'+GRUPOS.map(grp).join('')+'<div class="note" style="margin-top:10px">Parcelas mostram em qual número estarão nesse mês; investimentos somem quando quitam.</div><div class="fbtns" style="margin-top:14px"><button class="cancel" onclick="closeOv()">Fechar</button></div>';
   document.getElementById('ov').classList.add('open');
 }
@@ -672,7 +675,8 @@ function openCustoForm(id){
     '<div class="flg">Fornecedor</div><input class="fi" id="k-fornecedor" value="'+esc(c.fornecedor||'')+'" placeholder="Ex: Sistema vanguarda">'+
     '<div class="flg">Descrição</div><input class="fi" id="k-descricao" value="'+esc(c.descricao||'')+'">'+
     '<div class="ff"><div><div class="flg">Valor mensal (R$)</div><input class="fi" id="k-valor" type="text" inputmode="decimal" placeholder="0,00" oninput="moneyMask(this)" value="'+fmtMoney(c.valor)+'"></div><div><div class="flg">Forma</div><input class="fi" id="k-forma" value="'+esc(c.forma||'')+'" placeholder="Pix / Boleto"></div></div>'+
-    '<div class="ff"><div><div class="flg">Dia vencimento</div><input class="fi" id="k-venc" type="number" min="1" max="31" value="'+(c.venc||'')+'"></div><div><div class="flg">Parcelas pagas / total</div><div style="display:flex;gap:6px"><input class="fi" id="k-pg" type="number" placeholder="pagas" value="'+(c.pg?c.pg:'')+'"><input class="fi" id="k-tt" type="number" placeholder="total" value="'+(c.tt?c.tt:'')+'"></div></div></div>'+
+    '<div class="ff"><div><div class="flg">Dia vencimento</div><input class="fi" id="k-venc" type="number" min="1" max="31" value="'+(c.venc||'')+'"'+(id?'':' oninput="sugProxK(this.value)"')+'></div><div><div class="flg">Parcelas pagas / total</div><div style="display:flex;gap:6px"><input class="fi" id="k-pg" type="number" placeholder="pagas" value="'+(c.pg?c.pg:'')+'"><input class="fi" id="k-tt" type="number" placeholder="total" value="'+(c.tt?c.tt:'')+'"></div></div></div>'+
+    '<div class="flg">Primeira parcela / próxima conta <span style="font-weight:400;color:var(--faint)">(mês em que vence a próxima)</span></div><select class="fi" id="k-prox" onchange="this.dataset.mexeu=1">'+(()=>{const cur=proxCustoDefault(c),now=ymNow();const ms=[];for(let k=-3;k<=12;k++)ms.push(ymAdd(now,k));if(!ms.includes(cur))ms.unshift(cur);return ms.map(m=>'<option value="'+m+'" '+(m===cur?'selected':'')+'>'+ymLabel(m)+(m===now?' (este mês)':'')+'</option>').join('');})()+'</select>'+
     '<div class="ff"><div><div class="flg">Empresa</div>'+empSel('k',c)+'</div><div>'+rateioHtml('k',c)+'</div></div>'+
     '<div class="flg">Observação</div><textarea class="fi" id="k-obs" rows="2" placeholder="Anote algo sobre esse custo...">'+esc(c.obs||'')+'</textarea>'+
     '<div class="mbtns">'+(id?'<button class="del-confirm" style="flex:.5" onclick="delCusto(\''+id+'\')">Excluir</button>':'')+(id?'<button class="cancel" style="flex:.8" onclick="toggleCustoFim(\''+id+'\')">'+(c.fim?'↩ Reativar':'✓ Encerrar')+'</button>':'')+'<button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveCusto()">Salvar</button></div>'+
@@ -685,6 +689,7 @@ async function _saveCusto(){
   const g=n=>document.getElementById('k-'+n).value.trim();
   const old=custEditId?CUSTOS.find(x=>x.id===custEditId):null;const E=readEmp('k');
   const row={id:custEditId||('cx'+Date.now()),grupo:g('grupo'),data:old?old.data:(new Date().toLocaleDateString('pt-BR')),fornecedor:g('fornecedor'),descricao:g('descricao'),emp:E.emp,emp2:E.emp2,ppri:E.ppri,forma:g('forma'),valor:parseMoney(g('valor')),venc:parseInt(g('venc'))||null,pg:parseInt(g('pg'))||0,tt:parseInt(g('tt'))||0,status:g('status'),fim:old?!!old.fim:false,obs:g('obs'),mespg:old?(old.mespg||ymNow()):ymNow()};
+  const prox=g('prox');if(sk(row.status)!=='pago'&&prox&&(!old||prox!==proxCustoDefault(old)||sk(old.status)==='pago'))row.mespg=prox;
   if(!row.fornecedor&&!row.descricao){toast('Põe fornecedor ou descrição');return;}
   let virouPago=false;if(sk(row.status)==='pago'&&!(old&&custoPagoMes(old))){virouPago=true;row.mespg=ymNow();if(row.tt>0&&(old?row.pg===(+old.pg||0):row.pg===0))row.pg=Math.min(row.pg+1,row.tt);}
   try{await upsertSafe('custos',row);let msg=custEditId?'Salvo ✓':'Custo adicionado ✓';
