@@ -407,7 +407,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1855';
+const BUILD='1030-1856';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -990,9 +990,10 @@ async function autoPermuta(){if(permRodou||!CANW||!cloaded||!floaded)return;perm
     if(c.mespg&&c.mespg>ym)continue;
     const ja=FLUXO.find(t=>t.tipo==='Entrada'&&isPermT(t)&&String(t.mes).padStart(2,'0')===mm&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));
     if(ja){if(/^perm_/.test(ja.id||'')&&ja.data!==dia1){try{await restWrite('PATCH','fluxo',{data:dia1},'id=eq.'+encodeURIComponent(ja.id));n++;}catch(e){}}continue;}
-    const row={id:'perm_'+c.id+'_'+ym,data:dia1,mes:mm,tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:c.empresa+' · permuta '+ymLabel(ym),valor:+c.valor||0,forma:'Permuta',conta:'Permuta',classe:'Variável',pg:0,tt:0,fim:false};
-    try{await upsertSafe('fluxo',row);n++;}catch(e){diag('permuta auto falhou: '+(e&&e.message));}}
-  if(n){await loadFluxo();toast(n+' permuta'+(n>1?'s':'')+' de '+ymLabel(ym)+' lançada'+(n>1?'s':'')+' no fluxo ✓');}}
+    const tt=+c.tt||0,pg0=+c.pg||0;if(tt>0&&pg0>=tt)continue;const npg=tt>0?pg0+1:pg0;
+    const row={id:'perm_'+c.id+'_'+ym,data:dia1,mes:mm,tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:c.empresa+' · permuta '+(tt>0?npg+'/'+tt:ymLabel(ym)),valor:+c.valor||0,forma:'Permuta',conta:'Permuta',classe:'Variável',pg:0,tt:0,fim:false};
+    try{await upsertSafe('fluxo',row);n++;if(tt>0)await DB.collection('clientes').doc(c.id).update({pg:npg});}catch(e){diag('permuta auto falhou: '+(e&&e.message));}}
+  if(n){await loadFluxo();await loadClientes();toast(n+' permuta'+(n>1?'s':'')+' de '+ymLabel(ym)+' lançada'+(n>1?'s':'')+' no fluxo ✓');}}
 function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
 function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());const k=sk(c.empresa||'');if(!k)return true;return FLUXO.find(t=>t.tipo==='Entrada'&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));}
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
