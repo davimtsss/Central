@@ -407,7 +407,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1850';
+const BUILD='1030-1853';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -456,8 +456,8 @@ function onAuthed(){
   hideLogin();
   const lb=document.getElementById('logoutbtn');if(lb)lb.style.display='';
   DB=makeDB();USER={};CANW=true;
-  DB.collection('clientes').onSnapshot(s=>{CLIENTES=s.docs.map(d=>({id:d.id,...d.data()}));cloaded=true;if(['clientes','overview'].includes(tab))renderActive();},e=>{});
-  DB.doc('fluxo/data').onSnapshot(s=>{const dt=s.data();FLUXO=(dt&&dt.items)||[];floaded=true;refreshMeses();if(['overview','fluxo','custos'].includes(tab))renderActive();},e=>{});
+  DB.collection('clientes').onSnapshot(s=>{CLIENTES=s.docs.map(d=>({id:d.id,...d.data()}));cloaded=true;if(['clientes','overview'].includes(tab))renderActive();autoPermuta();},e=>{});
+  DB.doc('fluxo/data').onSnapshot(s=>{const dt=s.data();FLUXO=(dt&&dt.items)||[];floaded=true;refreshMeses();if(['overview','fluxo','custos'].includes(tab))renderActive();autoPermuta();},e=>{});
   loadCustos();
   loadDM();
   loadAsaas();
@@ -979,6 +979,19 @@ function sharePrint(){const rows=shareRows();const tot=rows.reduce((a,r)=>a+r.de
   w.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>'+shareMarca()+' · '+shareTitle()+'</title><style>body{font-family:Montserrat,-apple-system,Helvetica,Arial,sans-serif;padding:28px;color:#1a1f2b}h1{font-size:20px;margin:0 0 4px}.sub{color:#667;margin-bottom:18px}table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#667;padding:8px 6px;border-bottom:2px solid #dde}td{padding:10px 6px;border-bottom:1px solid #e8ebf0}td.r,th.r{text-align:right}.late{color:#c0392b;font-weight:700}tfoot td{font-weight:800;border-top:2px solid #1a1f2b}@media print{body{padding:0}}<\/style></head><body><h1>Cobranças '+shareMarca()+' · '+shareTitle()+'</h1><div class="sub">'+new Date().toLocaleDateString('pt-BR')+' · '+rows.length+' clientes</div><table><thead><tr><th>#</th><th>Cliente</th><th>Atraso</th><th class="r">Devendo</th></tr></thead><tbody>'+rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(r.nome)+'</b></td><td class="'+(r.nv?'late':'')+'">'+(r.nv?r.nv+' '+(r.nv>1?r.unid:r.unid.slice(0,-1)):'—')+'</td><td class="r">'+brl(r.dev)+'</td></tr>').join('')+'</tbody><tfoot><tr><td colspan="3">Total</td><td class="r">'+brl(tot)+'</td></tr></tfoot></table><script>setTimeout(()=>window.print(),300)<\/script></body></html>');w.document.close();}
 // ===== Cliente Pago → Entrada ADmídia no Fluxo (sempre Cora) =====
 function cliFluxoDesc(c,pg,ref){const tt=+c.tt||0;return (c.empresa||'Cliente')+(tt>0?' · parcela '+pg+'/'+tt:' · mensalidade'+(ref&&ref!==ymNow()?' '+ymLabel(ref):''));}
+// permuta entra sozinha no fluxo todo mês (conta Permuta). Cliente com 'Próxima cobrança' futura só entra a partir daquele mês.
+// Posto Michells: gasolina começa em nov/2026 (pedido do Davi em 30/10/2026)
+const PERM_INICIO={postomichells:'2026-11'};
+let permRodou=false;
+async function autoPermuta(){if(permRodou||!CANW||!cloaded||!floaded)return;permRodou=true;
+  const now=new Date(),ym=ymNow(),mm=ym.slice(5),ano=ym.slice(0,4);let n=0;
+  for(const c of CLIENTES){if(!(isPermCli(c)||sk(c.status||'')==='permuta')||sk(c.status||'')==='cancelado'||!(+c.valor>0))continue;
+    const k=sk(c.empresa);if(Object.keys(PERM_INICIO).some(p=>k.includes(p)&&ym<PERM_INICIO[p]))continue;
+    if(c.mespg&&c.mespg>ym)continue;
+    const ja=FLUXO.some(t=>t.tipo==='Entrada'&&isPermT(t)&&String(t.mes).padStart(2,'0')===mm&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));if(ja)continue;
+    const row={id:'perm_'+c.id+'_'+ym,data:now.toLocaleDateString('pt-BR'),mes:mm,tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:c.empresa+' · permuta '+ymLabel(ym),valor:+c.valor||0,forma:'Permuta',conta:'Permuta',classe:'Variável',pg:0,tt:0,fim:false};
+    try{await upsertSafe('fluxo',row);n++;}catch(e){diag('permuta auto falhou: '+(e&&e.message));}}
+  if(n){await loadFluxo();toast(n+' permuta'+(n>1?'s':'')+' de '+ymLabel(ym)+' lançada'+(n>1?'s':'')+' no fluxo ✓');}}
 function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
 function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());const k=sk(c.empresa||'');if(!k)return true;return FLUXO.find(t=>t.tipo==='Entrada'&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));}
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
