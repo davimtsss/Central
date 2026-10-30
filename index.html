@@ -411,7 +411,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1906';
+const BUILD='1030-1907';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -717,7 +717,7 @@ function renderCustos(){
     const total=list.reduce((a,c)=>a+(+c.valor||0),0);
     document.getElementById('content').innerHTML=chips+'<div class="count">'+list.length+' encerradas/quitadas</div>'+custosList(list);return;
   }
-  const months=monthOpts(12);
+  const months=monthOpts(48);
   const totK=kk=>CUSTOS.filter(c=>custoAtivoK(c,kk)).reduce((a,c)=>a+(+c.valor||0),0);
   const psel='<div class="ph" style="margin:0 0 8px;font-weight:700">Custo por mês <small style="color:var(--muted);font-weight:500">· toca no mês pra ver a projeção</small></div><div class="mstrip">'+months.map(m=>'<div class="ms'+(per===m.ym?' on':'')+'" onclick="setCPeriodo(\''+m.ym+'\')"><small>'+(m.k===0?'Este mês':m.lbl)+'</small><b>'+brlk(totK(m.k))+'</b></div>').join('')+'</div>'+projDiff(k);
   const base=CUSTOS.filter(c=>custoAtivoK(c,k));
@@ -730,13 +730,19 @@ function renderCustos(){
   let extra='';
   if(cClasse==='todos'){
     const e=custoEmpresa(base);const arr=Object.entries(e).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);arr.forEach((x,i)=>x.c=EMPCOL[sk(x.k)]||PAL[i%PAL.length]);
-    extra+='<div class="panel" style="margin-bottom:14px"><div class="ph">Custo por empresa · total '+brl(totalMes)+'</div><div class="donut-wrap">'+donut(arr,totalMes)+'<div class="leg">'+(arr.length?arr.map(x=>'<div class="row"><span class="dot" style="background:'+x.c+'"></span><span class="nm">'+esc(x.k)+'</span><span class="vv">'+brl(x.v)+'</span></div>').join(''):'<span style="color:var(--faint)">—</span>')+'</div></div></div>';
+    extra+='<div class="panel" style="margin-bottom:14px;cursor:pointer" onclick="openProjAnos()" title="ver projeção dos próximos meses"><div class="ph">Custo por empresa · total '+brl(totalMes)+' <small style="color:var(--accent);font-weight:600">· ver próximos meses →</small></div><div class="donut-wrap">'+donut(arr,totalMes)+'<div class="leg">'+(arr.length?arr.map(x=>'<div class="row"><span class="dot" style="background:'+x.c+'"></span><span class="nm">'+esc(x.k)+'</span><span class="vv">'+brl(x.v)+'</span></div>').join(''):'<span style="color:var(--faint)">—</span>')+'</div></div></div>';
   }
   const resumo='<div class="count">'+list.length+' custos · '+(months.find(m=>m.ym===per)||{lbl:''}).lbl+'</div>';
   const sus=CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt);
   const alerta=sus.length?'<div class="panel" style="margin-bottom:14px;border:1px solid var(--red);background:#fff5f5"><div style="font-weight:700;color:var(--red);margin-bottom:6px">⚠ '+sus.length+(sus.length>1?' contas encerradas ainda têm':' conta encerrada ainda tem')+' parcelas faltando</div>'+sus.map(c=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px"><span><b>'+esc(c.fornecedor||c.descricao)+'</b> · '+brl(c.valor)+' · dia '+(c.venc||'—')+' · '+(+c.pg||0)+'/'+(+c.tt)+'</span><a href="#" style="color:var(--accent);font-weight:700;white-space:nowrap" onclick="event.preventDefault();openCustoForm(\''+c.id+'\')">abrir e reativar</a></div>').join('')+'<div style="font-size:12px;color:var(--muted);margin-top:4px">Se ainda está pagando, abre e clica em ↩ Reativar. Se quitou antes, ajusta as parcelas pagas.</div></div>':'';
   document.getElementById('content').innerHTML=psel+chips+alerta+kpis+extra+resumo+(k>0?custosFuturo(list,k):custosList(list));
+  const on=document.querySelector('.mstrip .ms.on');if(on&&on.scrollIntoView)on.scrollIntoView({block:'nearest',inline:'center'});
 }
+// projeção longa (4 anos): mês a mês, agrupado por ano; clicar abre o mês
+function openProjAnos(){const ms=monthOpts(48),tot=ms.map(m=>({m,v:CUSTOS.filter(c=>custoAtivoK(c,m.k)).reduce((a,c)=>a+(+c.valor||0),0)}));const mx=Math.max(1,...tot.map(x=>x.v));
+  const anos=[...new Set(ms.map(m=>m.ym.slice(0,4)))];
+  document.getElementById('modal').innerHTML='<h3>Custos previstos · próximos 4 anos</h3><div class="note" style="margin-bottom:10px">Fixos e salários continuam todo mês; parcelas somem quando quitam. Toca num mês pra ver o detalhe.</div>'+anos.map(a=>'<div style="font-weight:800;margin:14px 0 6px">'+a+'</div>'+tot.filter(x=>x.m.ym.startsWith(a)).map(x=>'<div onclick="closeOv();setCPeriodo(\''+x.m.ym+'\')" style="display:grid;grid-template-columns:70px 1fr 120px;gap:10px;align-items:center;padding:5px 0;cursor:pointer;font-size:13.5px"><span>'+(x.m.k===0?'Este mês':x.m.lbl)+'</span><span style="height:8px;background:var(--bg);border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:'+Math.round(100*x.v/mx)+'%;background:var(--accent);border-radius:4px"></i></span><b style="text-align:right">'+brl(x.v)+'</b></div>').join('')).join('')+'<div class="fbtns" style="margin-top:14px"><button class="cancel" onclick="closeOv()">Fechar</button></div>';
+  document.getElementById('ov').classList.add('open');}
 // diferença do mês escolhido pro mês atual: o que quita e o que começa
 function projDiff(k){if(!k)return '';const a0=CUSTOS.filter(c=>custoAtivoK(c,0)),ak=CUSTOS.filter(c=>custoAtivoK(c,k));
   const t0=a0.reduce((x,c)=>x+(+c.valor||0),0),tk=ak.reduce((x,c)=>x+(+c.valor||0),0),d=tk-t0;
