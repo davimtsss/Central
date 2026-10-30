@@ -411,7 +411,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1907';
+const BUILD='1030-1909';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -569,7 +569,8 @@ async function syncAsaasFluxo(){if(asaasSyncing||!floaded||!ASAAS||!Array.isArra
     // remove linhas por pagamento criadas pela versão anterior (evita contar duas vezes)
     for(const t of FLUXO.filter(t=>/^asaas_pay/.test(t.id))){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}
     // uma linha por DIA, com a data real do recebimento (id fixo por dia: atualiza, nunca duplica)
-    const porDia={};ASAAS.recebidos.forEach(p=>{const d=(p.data||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d.slice(0,7)>=ASAAS_SYNC_DESDE)porDia[d]=(porDia[d]||0)+(+p.valor||0);});
+    const porDia={};// líquido (o que cai na conta, sem a taxa do Asaas) na data de crédito, quando a função manda
+    ASAAS.recebidos.forEach(p=>{const d=(p.credito||p.data||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d.slice(0,7)>=ASAAS_SYNC_DESDE)porDia[d]=(porDia[d]||0)+(p.liquido!=null?+p.liquido:(+p.valor||0));});
     const ini=new Date();ini.setDate(ini.getDate()-44);const janela=ini.getFullYear()+'-'+String(ini.getMonth()+1).padStart(2,'0')+'-'+String(ini.getDate()).padStart(2,'0');
     const mesesCobertos=new Set(Object.keys(porDia).map(d=>d.slice(0,7)).filter(ym=>janela<=ym+'-01'));
     let n=0;
