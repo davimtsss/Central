@@ -195,6 +195,11 @@ html,body{overflow-x:hidden;max-width:100%}
 .ms{flex:0 0 auto;min-width:100px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 14px;cursor:pointer}
 .ms small{display:block;font-size:11.5px;color:var(--muted)}.ms b{display:block;font-size:14.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ms.on{background:var(--accent);border-color:var(--accent);color:#fff}.ms.on small{color:rgba(255,255,255,.8)}
+.ov-fat{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.ov-fat div{background:var(--paper);border-radius:18px;padding:16px 20px;cursor:pointer;box-shadow:0 1px 2px rgba(14,28,58,.05),0 10px 26px rgba(14,28,58,.05)}
+.ov-fat span{display:block;font-size:12.5px;color:var(--muted);font-weight:500}.ov-fat b{display:block;font-size:24px;font-weight:800;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.ov-fat div:last-child b{color:#7a4fd6}.ov-fat small{font-size:12px;color:var(--faint)}
+@media(max-width:520px){.ov-fat{grid-template-columns:1fr}}
 .ov-h3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;width:100%}
 .ov-h3.two{grid-template-columns:repeat(2,1fr)}
 .ov-h3 div{background:rgba(255,255,255,.08);border-radius:16px;padding:14px 18px}
@@ -411,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1922';
+const BUILD='1030-1925';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -517,6 +522,10 @@ function renderOverview(){
 }
 
 
+// faturamento mensal da ADmídia = soma das mensalidades dos clientes ativos (muda na hora ao entrar/sair cliente)
+function fatAD(){const at=CLIENTES.filter(c=>!isLed(c)&&!['cancelado','encerrado'].includes(sk(c.status||''))&&(+c.valor>0));const P=c=>isPermCli(c)||sk(c.status||'')==='permuta';
+  const din=at.filter(c=>!P(c)),per=at.filter(P);const sm=a=>a.reduce((x,c)=>x+(+c.valor||0),0);return {din:sm(din),nd:din.length,perm:sm(per),np:per.length,tot:sm(din)+sm(per)};}
+function fatADHtml(){const f=fatAD();return '<div class="ov-fat"><div onclick="go(\'clientes\')"><span>Faturamento ADmídia · mensal</span><b>'+brl(f.din)+'</b><small>'+f.nd+' clientes pagando em dinheiro</small></div><div onclick="go(\'clientes\')"><span>Faturamento ADmídia com permuta</span><b>'+brl(f.tot)+'</b><small>+ '+brl(f.perm)+' em permuta · '+f.np+' cliente'+(f.np===1?'':'s')+'</small></div></div>';}
 // ===== Visão geral (estilo app de banco: números grandes em cima, listas embaixo) =====
 function ovIni(n){const w=String(n||'?').trim().split(/\s+/);return esc(((w[0]||'')[0]||'?')+((w[1]||'')[0]||'')).toUpperCase();}
 function overviewNovo(o){
@@ -546,7 +555,7 @@ function overviewNovo(o){
     +chip(ICONS.cam,'Check-in fotográfico',checkLoaded&&!checkErr?ckp.length:'…',checkLoaded&&!checkErr?(ckp.length?ckp.slice(0,3).map(x=>esc(x.c.nome)).join(', ')+(ckp.length>3?'…':''):'ninguém pendente'):'carregando','openCheckins()',ckp.length>0)
     +chip(ICONS.onpro,'OnPro · Asaas',!asaasLoaded?'…':(asaasErr?'!':ag.length),!asaasLoaded?'carregando':(asaasErr?'não conectado':(ag.length?ag.length+' em atraso · '+brl(ag.reduce((a,x)=>a+x.total,0)):'nenhum atraso')),'goOnPro()',ag.length>0)
     +'</div>';
-  return '<div class="ovw"><div class="ov-date">'+today.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})+'</div>'+fixAtrasoBar()+hero+lists+chips+'</div>';
+  return '<div class="ovw"><div class="ov-date">'+today.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})+'</div>'+fixAtrasoBar()+hero+fatADHtml()+lists+chips+'</div>';
 }
 /* ===== ASAAS (OnPro) ===== */
 function goOnPro(){cfiltro='onpro';go('clientes');}
@@ -997,7 +1006,7 @@ function renderClientes(){
   list.sort((a,b)=>((parseInt(a.venc)||99)-(parseInt(b.venc)||99))||sk(a.empresa).localeCompare(sk(b.empresa)));
   let bd=!CLIENTES.length?'<div class="empty"><h3>Nenhum cliente</h3>Clica em <b>+ Cliente</b>.</div>':!list.length?'<div class="empty"><h3>Nada nesse filtro ✓</h3></div>':(isV2()?'<div class="count">'+list.length+' clientes</div>'+clientesV2(list):'<div class="count">'+list.length+' clientes · por vencimento</div><div class="ctbl"><div class="crow h"><span>Cliente</span><span>Status</span></div>'+list.map(crow).join('')+'</div>');
   const share=(['atrasados','emaberto','todos'].includes(cfiltro)&&list.length)?'<div class="sharebar"><button class="cancel" onclick="openShare()">📤 Compartilhar lista</button></div>':'';
-  document.getElementById('content').innerHTML='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>'+share+fixAtrasoBar()+bd;
+  document.getElementById('content').innerHTML='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>'+share+fixAtrasoBar()+(['todos','atrasados','emaberto','pago','permuta'].includes(cfiltro)?'<div style="margin:-4px 0 16px">'+fatADHtml()+'</div>':'')+bd;
 }
 // ===== Compartilhar lista de cobranças (texto p/ WhatsApp, copiar, imprimir/PDF) =====
 function shareMarca(){return cfiltro==='onpro'?'OnPro':'ADmídia';}
