@@ -56,7 +56,8 @@ h1,h2,h3{margin:0;font-weight:700}
 .kc .n{font-size:21px;font-weight:800;margin-top:7px;letter-spacing:-.01em;white-space:nowrap}
 .kc .s{font-size:11.5px;color:var(--faint);margin-top:4px}
 .kc.g .n{color:var(--green)}.kc.r .n{color:var(--red)}.kc.b .n{color:var(--accent)}
-@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpis.k6{grid-template-columns:repeat(6,1fr)}@media(max-width:1100px){.kpis.k6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:720px){.kpis{grid-template-columns:repeat(2,1fr)}.kpis.k6{grid-template-columns:repeat(2,1fr)}}
 .cols{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
 @media(max-width:820px){.cols{grid-template-columns:1fr}}
 .panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
@@ -356,7 +357,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1503';
+const BUILD='1030-1506';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -526,6 +527,10 @@ function txTable(list,showPill){
   const rows=list.map(t=>{const e=t.tipo==='Entrada';let dh='';if(v2&&t.data!==lastD){lastD=t.data;const D=dia[t.data||'']||{e:0,s:0};dh='<div class="tr dh">'+esc(t.data||'Sem data')+'<span>'+(D.e?'<b class="e">+'+brl(D.e)+'</b>':'')+(D.s?'<b class="s">−'+brl(D.s)+'</b>':'')+'</span></div>';}return dh+'<div class="tr" onclick="openFluxoForm(\''+t.id+'\')"><span class="dt">'+esc(t.data)+'</span><span class="ds">'+esc(t.desc||t.cat)+'</span><span class="pill2 hc">'+esc(t.cat||'')+'</span><span class="em hf">'+esc(t.emp||'')+(t.conta?' · '+esc(t.conta):'')+'</span><span class="am '+(e?'e':'s')+'"'+(e&&isPermT(t)?' style="color:#7a4fd6" title="Permuta"':'')+'>'+(e?'+':'−')+brl(t.valor)+'</span></div>';}).join('');
   return {ent,sai,html:'<div class="tbl"><div class="tr h"><span>Data</span><span>Descrição</span><span class="hc">Categoria</span><span class="hf">Frente</span><span style="text-align:right">Valor</span></div>'+(rows||'<div class="empty">Nada aqui. Clica em <b>+ Lançamento</b>.</div>')+'</div>'};
 }
+// pente fino: mesma descrição + mesmo valor + mesmo tipo no mês = provável lançamento duplicado
+function fluxoDups(list){const g={};list.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const k=t.tipo+'|'+(+t.valor||0).toFixed(2)+'|'+sk(t.desc||t.cat);(g[k]=g[k]||[]).push(t);});return Object.values(g).filter(a=>a.length>1);}
+function dupsHtml(list){const D=fluxoDups(list);if(!D.length)return '<div style="font-size:12px;color:var(--green);margin:0 0 10px">✓ Nenhum lançamento duplicado neste mês</div>';
+  return '<div class="panel" style="border:1px solid var(--red);padding:12px 14px;margin-bottom:12px"><b>⚠ Possíveis duplicados · '+D.length+'</b><div style="font-size:12px;color:var(--muted);margin:2px 0 8px">Mesma descrição e mesmo valor lançados mais de uma vez. Clica na data pra abrir e apagar o repetido.</div>'+D.map(a=>'<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0;border-top:1px solid var(--line,#eee);font-size:13px"><span style="flex:1;min-width:180px">'+esc(a[0].desc||a[0].cat)+' · <b>'+brl(a[0].valor)+'</b> · '+a.length+'x</span>'+a.map(t=>'<a href="#" onclick="openFluxoForm(\''+t.id+'\');return false">'+esc(t.data||'sem data')+(t.conta?' · '+esc(t.conta):'')+'</a>').join(' ')+'</div>').join('')+'</div>';}
 function renderFluxo(){
   if(DB&&!floaded){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const q=sk(document.getElementById('q').value||'');
@@ -533,7 +538,7 @@ function renderFluxo(){
   list=list.slice().sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
   const T=txTable(list);const perm=list.filter(t=>t.tipo==='Entrada'&&isPermT(t)).reduce((a,t)=>a+(+t.valor||0),0);const ent=T.ent-perm;
   document.getElementById('content').innerHTML=mesChips('setMesF')+
-    '<div class="kpis"><div class="kc g"><div class="l">Entradas'+(perm?' (dinheiro)':'')+'</div><div class="n">'+brlk(ent)+'</div></div>'+(perm?'<div class="kc"><div class="l">Permuta</div><div class="n" style="color:#7a4fd6">'+brlk(perm)+'</div></div>':'')+'<div class="kc r"><div class="l">Saídas</div><div class="n">'+brlk(T.sai)+'</div></div><div class="kc b"><div class="l">Saldo</div><div class="n">'+brlk(ent-T.sai)+'</div></div><div class="kc"><div class="l">Lançamentos</div><div class="n">'+list.length+'</div></div></div>'+
+    '<div class="kpis k6"><div class="kc g"><div class="l">Entradas (dinheiro)</div><div class="n">'+brlk(ent)+'</div></div><div class="kc"><div class="l">Permuta</div><div class="n" style="color:#7a4fd6">'+brlk(perm)+'</div></div><div class="kc g"><div class="l">Total que entrou</div><div class="n">'+brlk(ent+perm)+'</div><div class="s">dinheiro + permuta</div></div><div class="kc r"><div class="l">Saídas</div><div class="n">'+brlk(T.sai)+'</div></div><div class="kc b"><div class="l">Saldo (dinheiro)</div><div class="n">'+brlk(ent-T.sai)+'</div><div class="s">com permuta: '+brlk(ent+perm-T.sai)+'</div></div><div class="kc"><div class="l">Lançamentos</div><div class="n">'+list.length+'</div></div></div>'+dupsHtml(fluxoFilt())+
     '<div class="toolbar"><select onchange="setFTipo(this.value)"><option value="todos"'+(fTipo==='todos'?' selected':'')+'>Tudo</option><option value="e"'+(fTipo==='e'?' selected':'')+'>Só entradas</option><option value="s"'+(fTipo==='s'?' selected':'')+'>Só saídas</option></select><span style="color:var(--faint);font-size:12px">clique numa linha pra editar · busca no topo</span></div>'+T.html;
 }
 /* ===== CUSTOS (aba Financeiro empresas) ===== */
