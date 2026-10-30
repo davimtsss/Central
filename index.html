@@ -411,7 +411,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1910';
+const BUILD='1030-1922';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -570,18 +570,24 @@ async function syncAsaasFluxo(){if(asaasSyncing||!floaded||!ASAAS||!Array.isArra
     for(const t of FLUXO.filter(t=>/^asaas_pay/.test(t.id))){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}
     // uma linha por DIA, com a data real do recebimento (id fixo por dia: atualiza, nunca duplica)
     const porDia={};// líquido (o que cai na conta, sem a taxa do Asaas) na data de crédito, quando a função manda
-    ASAAS.recebidos.forEach(p=>{const d=(p.credito||p.data||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d.slice(0,7)>=ASAAS_SYNC_DESDE)porDia[d]=(porDia[d]||0)+(p.liquido!=null?+p.liquido:(+p.valor||0));});
+    const taxasMes={},debMes={};if(Array.isArray(ASAAS.extrato)){ASAAS.extrato.forEach(x=>{const d=(x.data||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||d.slice(0,7)<ASAAS_SYNC_DESDE)return;const ym=d.slice(0,7),a=+x.antecipacao||0,v=(+x.recebido||0)+Math.max(0,a);if(v>=0.01)porDia[d]=(porDia[d]||0)+v;if(a<0)(debMes[ym]=debMes[ym]||[]).push([d,-a]);if(+x.taxas)taxasMes[ym]=(taxasMes[ym]||0)-(+x.taxas);});
+      // débito de antecipação (dinheiro que já tinha caído antes) é abatido dos recebimentos do mês, a partir do dia do débito: o mês fecha com o que ficou de verdade
+      for(const ym of Object.keys(debMes)){const ds=Object.keys(porDia).filter(d=>d.startsWith(ym)).sort();for(const [dd,val] of debMes[ym]){let rem=val;const ord=ds.filter(d=>d>=dd).concat(ds.filter(d=>d<dd).reverse());for(const d of ord){if(rem<0.005)break;const t=Math.min(porDia[d],rem);porDia[d]-=t;rem-=t;}if(rem>=0.01)taxasMes[ym]=(taxasMes[ym]||0)+rem;}}
+    }else ASAAS.recebidos.forEach(p=>{const d=(p.credito||p.data||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d.slice(0,7)>=ASAAS_SYNC_DESDE)porDia[d]=(porDia[d]||0)+(p.liquido!=null?+p.liquido:(+p.valor||0));});
     const ini=new Date();ini.setDate(ini.getDate()-44);const janela=ini.getFullYear()+'-'+String(ini.getMonth()+1).padStart(2,'0')+'-'+String(ini.getDate()).padStart(2,'0');
     const mesesCobertos=new Set(Object.keys(porDia).map(d=>d.slice(0,7)).filter(ym=>janela<=ym+'-01'));
     let n=0;
     for(const d of Object.keys(porDia).sort()){const ym=d.slice(0,7);
       if(FLUXO.find(t=>t.id==='asaas_mes_'+ym)&&!mesesCobertos.has(ym))continue; // mês antigo já fechado no total mensal
       const v=Math.round(porDia[d]*100)/100;const id='asaas_dia_'+d;const atual=FLUXO.find(t=>t.id===id);
-      if(atual&&Math.abs((+atual.valor||0)-v)<0.01)continue;
+      if(Math.abs(v)<0.01)continue;const neg=v<0;if(atual&&Math.abs((+atual.valor||0)-Math.abs(v))<0.01&&atual.tipo===(neg?'Saída':'Entrada'))continue;
       const [y,m,dd]=d.split('-');
-      await upsertSafe('fluxo',{id,data:dd+'/'+m+'/'+y,mes:m,tipo:'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:'Mensalidade/Assinatura',descricao:'Recebimentos OnPro (Asaas)',valor:v,forma:'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;n++;}
+      await upsertSafe('fluxo',{id,data:dd+'/'+m+'/'+y,mes:m,tipo:neg?'Saída':'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:neg?'Taxas':'Mensalidade/Assinatura',descricao:neg?'Desconto de antecipação (Asaas)':'Recebimentos OnPro (Asaas)',valor:Math.abs(v),forma:'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;n++;}
     // com a função nova (data de crédito): dia que não teve crédito de verdade sai do fluxo
-    if(ASAAS.recebidos.some(p=>p.credito))for(const t of FLUXO.filter(t=>/^asaas_dia_/.test(t.id||''))){const d=t.id.slice(10);if(d>=janela&&d.slice(0,7)>=ASAAS_SYNC_DESDE&&!porDia[d]){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
+    // taxas do Asaas: uma saída por mês
+    for(const ym of Object.keys(taxasMes)){const v=Math.round(taxasMes[ym]*100)/100,id='asaas_taxa_'+ym,atual=FLUXO.find(t=>t.id===id);if(v<0.01||(atual&&Math.abs((+atual.valor||0)-v)<0.01))continue;const [y,m]=ym.split('-');const ult=(ym===ymNow())?new Date().getDate():new Date(+y,+m,0).getDate();
+      await upsertSafe('fluxo',{id,data:String(ult).padStart(2,'0')+'/'+m+'/'+y,mes:m,tipo:'Saída',emp:'OnPro',emp2:'',ppri:50,cat:'Taxas',descricao:'Taxas Asaas · '+ymLabel(ym),valor:v,forma:'Débito',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;}
+    if(Array.isArray(ASAAS.extrato)||ASAAS.recebidos.some(p=>p.credito))for(const t of FLUXO.filter(t=>/^asaas_dia_/.test(t.id||''))){const d=t.id.slice(10);if(d>=janela&&d.slice(0,7)>=ASAAS_SYNC_DESDE&&!porDia[d]){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
     // tira a linha de total mensal dos meses que agora estão dia a dia
     for(const ym of mesesCobertos){const t=FLUXO.find(t=>t.id==='asaas_mes_'+ym);if(t){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
     if(n)toast('Entradas OnPro (Asaas) atualizadas dia a dia');
@@ -648,12 +654,14 @@ function checkPend(){return CHECK.filter(c=>c.ativo!==false).map(c=>({c,d:diasDe
 function openCheckins(){
   const semTabela=/checkins/i.test(checkErr)&&/not find|does not exist|schema cache|PGRST205/i.test(checkErr);
   const pend=checkPend();const feitos=CHECK.filter(c=>c.ativo===false).sort((a,b)=>String(b.ultimo||'').localeCompare(String(a.ultimo||''))).slice(0,8);
-  const lista=pend.map(x=>'<div class="ck-r"><span class="nm" onclick="openCheckForm(\''+x.c.id+'\')">'+esc(x.c.nome)+(x.c.obs?'<small>'+esc(x.c.obs)+'</small>':'')+'</span><span class="st">'+(x.d?'há '+x.d+'d':'hoje')+'</span><button class="cancel" onclick="checkFeito(\''+x.c.id+'\')">✓ Feito</button></div>').join('');
+  const lista=pend.map(x=>'<div class="ck-r"><span class="nm" onclick="openCheckForm(\''+x.c.id+'\')">'+esc(x.c.nome)+(x.c.obs?'<small>'+esc(x.c.obs)+'</small>':'')+'</span><span class="st">'+(x.d?'há '+x.d+'d':'hoje')+'</span><button class="cancel" onclick="checkFeitoConf(this,\''+x.c.id+'\')">✓ Feito</button></div>').join('');
   const hist=feitos.length?'<details style="margin-top:14px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Feitos recentes ('+feitos.length+')</summary>'+feitos.map(c=>'<div class="ck-r" style="opacity:.7"><span class="nm" style="cursor:default">'+esc(c.nome)+'</span><span class="st ok">feito '+isoBr(c.ultimo)+'</span><button class="cancel" onclick="checkReabrir(\''+c.id+'\')">voltar</button></div>').join('')+'</details>':'';
   document.getElementById('modal').innerHTML='<h3>📷 Check-in fotográfico</h3>'+(semTabela?'<div class="note">A tabela <b>checkins</b> ainda não existe no Supabase — roda o SQL que o Claude mandou e recarrega.</div>':'<div class="ck-add"><input class="fi" id="ck-nome" placeholder="Cliente que precisa receber fotos" onkeydown="if(event.key===\'Enter\')checkAdd()"><button class="save" onclick="checkAdd()">Adicionar</button></div>'+(lista||'<div class="empty">Ninguém pendente ✓</div>')+hist)+'<div class="fbtns" style="margin-top:14px"><button class="cancel" onclick="closeOv()">Fechar</button></div>';
   document.getElementById('ov').classList.add('open');}
 function isoBr(iso){return iso?String(iso).slice(8,10)+'/'+String(iso).slice(5,7):'—';}
 async function checkAdd(){const el=document.getElementById('ck-nome');const nome=(el.value||'').trim();if(!nome){toast('Põe o nome');return;}try{await upsertSafe('checkins',{id:'ck'+Date.now(),nome,obs:'',ultimo:null,ativo:true,criado:new Date().toISOString()});el.value='';toast('Adicionado ✓');await loadCheckins();openCheckins();}catch(e){writeErr(e);}}
+// ✓ Feito pede confirmação (2º toque em até 4s) pra não marcar sem querer
+function checkFeitoConf(btn,id){if(btn.dataset.conf){checkFeito(id);return;}btn.dataset.conf='1';btn.textContent='Confirmar?';btn.style.background='var(--green)';btn.style.color='#fff';setTimeout(()=>{if(!btn.isConnected)return;delete btn.dataset.conf;btn.textContent='✓ Feito';btn.style.background='';btn.style.color='';},4000);}
 async function checkFeito(id){try{await restWrite('PATCH','checkins',{ativo:false,ultimo:hojeISO()},'id=eq.'+encodeURIComponent(id));toast('Feito ✓');await loadCheckins();if(document.getElementById('ov').classList.contains('open'))openCheckins();}catch(e){writeErr(e);}}
 async function checkReabrir(id){try{await restWrite('PATCH','checkins',{ativo:true,ultimo:null,criado:new Date().toISOString()},'id=eq.'+encodeURIComponent(id));await loadCheckins();openCheckins();}catch(e){writeErr(e);}}
 function openCheckForm(id){const c=CHECK.find(x=>x.id===id);if(!c)return;
