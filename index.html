@@ -386,7 +386,7 @@ async function restRead(table){return restCall('GET',table,null,'select=*');}
 async function restWrite(method,table,body,query){return restCall(method,table,body,query,method==='POST'?'resolution=merge-duplicates,return=minimal':'return=minimal');}
 async function upsertSafe(table,row){return restWrite('POST',table,row);}
 let SAVING=false;
-async function guarded(fn){if(SAVING)return;SAVING=true;clearFormErr();diag('— clique em Salvar —');const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await Promise.race([fn(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('travou por 45s')),45000))]);}catch(e){diag('TRAVOU: '+(e&&e.message));toastErr('Erro ao salvar: '+((e&&e.message)||e));}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
+async function guarded(fn){if(SAVING){diag('clique ignorado: ainda salvando o anterior');toast('Ainda salvando o anterior… espera uns segundos');return;}SAVING=true;clearFormErr();diag('— clique em Salvar —');const btns=[...document.querySelectorAll('#ov button.save')];btns.forEach(b=>{b.disabled=true;b.dataset.t=b.textContent;b.textContent='Salvando…';});try{await Promise.race([fn(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('travou por 45s')),45000))]);}catch(e){diag('TRAVOU: '+(e&&e.message));toastErr('Erro ao salvar: '+((e&&e.message)||e));}finally{SAVING=false;btns.forEach(b=>{b.disabled=false;b.textContent=b.dataset.t||'Salvar';});}}
 async function sbw(run){let r;try{r=await withTimeout(run(),6000);}catch(e){try{await sb.auth.getSession();}catch(_){}r=await run();}if(r&&r.error)throw r.error;return r;}
 function sk(s){return (s||'').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g,'');}
 function brl(n){n=Number(n)||0;return (n<0?'−':'')+'R$ '+Math.abs(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -416,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1935';
+const BUILD='1030-1940';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
