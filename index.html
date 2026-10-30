@@ -411,7 +411,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1909';
+const BUILD='1030-1910';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -580,6 +580,8 @@ async function syncAsaasFluxo(){if(asaasSyncing||!floaded||!ASAAS||!Array.isArra
       if(atual&&Math.abs((+atual.valor||0)-v)<0.01)continue;
       const [y,m,dd]=d.split('-');
       await upsertSafe('fluxo',{id,data:dd+'/'+m+'/'+y,mes:m,tipo:'Entrada',emp:'OnPro',emp2:'',ppri:50,cat:'Mensalidade/Assinatura',descricao:'Recebimentos OnPro (Asaas)',valor:v,forma:'Boleto',conta:'Asaas',classe:'Variável',pg:0,tt:0,fim:false});mudou=true;n++;}
+    // com a função nova (data de crédito): dia que não teve crédito de verdade sai do fluxo
+    if(ASAAS.recebidos.some(p=>p.credito))for(const t of FLUXO.filter(t=>/^asaas_dia_/.test(t.id||''))){const d=t.id.slice(10);if(d>=janela&&d.slice(0,7)>=ASAAS_SYNC_DESDE&&!porDia[d]){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
     // tira a linha de total mensal dos meses que agora estão dia a dia
     for(const ym of mesesCobertos){const t=FLUXO.find(t=>t.id==='asaas_mes_'+ym);if(t){await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));mudou=true;}}
     if(n)toast('Entradas OnPro (Asaas) atualizadas dia a dia');
