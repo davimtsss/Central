@@ -347,6 +347,8 @@ function ymDiff(a,b){if(!a||!b)return 0;const pa=(''+a).split('-'),pb=(''+b).spl
 function cliMesPg(c){return c.mespg||(sk(c.status)==='pago'?'2026-10':null);}
 // Pago: mespg = mês pago. Em aberto/Não pago/Urgente: mespg = mês a que o status se refere (não foi pago)
 function cliLate(c){const s=sk(c.status);if(s==='permuta'||s==='cancelado')return 0;const now=ymNow(),d=parseInt(c.venc)||0,td=new Date().getDate(),venceu=(d&&td>d)?1:0;if(s==='pago'){const mp=cliMesPg(c);if(mp>=now)return 0;return Math.max(0,ymDiff(mp,now)-1+venceu);}if(c.mespg&&c.mespg>now)return 0;const base=(c.mespg&&c.mespg<now)?ymDiff(c.mespg,now):0;return base+venceu;}
+// mês mais antigo que o sistema considera não pago
+function cliDesde(c){if(sk(c.status)==='pago')return ymAdd(cliMesPg(c),1);return c.mespg||ymNow();}
 function ymAdd(ym,n){const p=ym.split('-');const d=new Date(+p[0],+p[1]-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 const MESABR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];function ymLabel(ym){const p=ym.split('-');return MESABR[+p[1]-1]+'/'+p[0];}
 function sugProx(v){const d=parseInt(v)||0,sel=document.getElementById('f-prox');if(!sel||sel.dataset.mexeu)return;sel.value=(d&&new Date().getDate()>d)?ymAdd(ymNow(),1):ymNow();}
@@ -354,7 +356,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1230';
+const BUILD='1030-1437';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -819,7 +821,7 @@ function crow(c){
   const s=effSt(c),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,atr=(s==='naopago'||s==='urgente');
   const late=cliLate(c);
   let m=[];
-  if(late>=2||(late===1&&!d))m.push('<span class="rd" style="font-weight:700">⚠ '+late+(late>1?' meses':' mês')+' em atraso</span>');
+  if(late>=2||(late===1&&!d))m.push('<span class="rd" style="font-weight:700">⚠ '+late+(late>1?' meses':' mês')+' em atraso'+(late>=2?' (desde '+ymLabel(cliDesde(c))+')':'')+'</span>');
   if(c.valor)m.push('<span><b>'+brl(c.valor)+'</b>/mês</span>');
   if(tt>0)m.push('<span>'+(pg>=tt?('♻ '+pg+' meses'):(pg+'/'+tt+' parcelas'))+'</span>');
   if(s==='pago')m.push('<span style="color:var(--green)">pago ✓</span>');else if(d&&s!=='permuta'&&c.mespg&&c.mespg>ymNow())m.push('<span>próxima cobrança '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</span>');else if(d&&s!=='permuta')m.push('<span class="'+(atr?'rd':'')+'"'+(late===1?' style="font-weight:700"':'')+'>'+(atr?(late===1?'⚠ venceu dia '+d+' · atrasado':'venceu dia '+d):'vence dia '+d)+'</span>');
@@ -836,7 +838,7 @@ function applyVis(){document.body.classList.toggle('v2',isV2());let b=document.g
 function toggleVis(){try{localStorage.setItem('cf_vis',isV2()?'classico':'novo');}catch(e){}applyVis();renderActive();}
 function grpHead(cor,nome,n,total){return '<div class="grp"><i style="background:'+cor+'"></i>'+nome+' <span class="gc">· '+n+'</span><span class="gt">'+brl(total)+'</span></div>';}
 function crow2(c){const s=effSt(c),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,late=cliLate(c),atr=(s==='naopago'||s==='urgente');
-  const sub=[c.cidade,c.seg].filter(Boolean).map(esc).join(' · ')+(late>=2?' · <span class="rd">'+late+' meses em atraso</span>':'');
+  const sub=[c.cidade,c.seg].filter(Boolean).map(esc).join(' · ')+(late>=2?' · <span class="rd">'+late+' meses em atraso (desde '+ymLabel(cliDesde(c))+')</span>':'');
   let vc='—',vcl='';if(d){if(s==='pago')vc='dia '+d;else if(c.mespg&&c.mespg>ymNow()&&s!=='permuta'){vc='próx. '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1];}else if(atr&&!isPermCli(c)){vc='venceu dia '+d;vcl=' late';}else vc='vence dia '+d;}
   const opts=STATUSES.map(o=>'<option '+(sk(o)===s?'selected':'')+'>'+o+'</option>').join('');
   const st=CANW?'<select class="stsel s-'+s+'" onchange="setStSel(\''+c.id+'\',this.value)">'+opts+'</select>':'<span>'+(LABEL[s]||esc(c.status))+'</span>';
