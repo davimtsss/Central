@@ -352,7 +352,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1029-1835';
+const BUILD='1030-0932';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -439,7 +439,7 @@ function renderOverview(){
   if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
   const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago','cancelado'].includes(effSt(c))).map(c=>({c,late:cliLate(c),urg:['naopago','urgente'].includes(effSt(c))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
-  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
+  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,k:0,lbl:'encerrada com parcelas faltando ('+(+c.pg||0)+'/'+c.tt+')'}))).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
   let maxD=null;FLUXO.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(d<=today&&(!maxD||d>maxD))maxD=d;}});
   const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>=2);
   const mm=ymNow().split('-')[1];const tx=FLUXO.filter(t=>t.mes===mm);
@@ -631,7 +631,9 @@ function renderCustos(){
     extra+='<div class="panel" style="margin-bottom:14px"><div class="ph">Custo por empresa · total '+brl(totalMes)+'</div><div class="donut-wrap">'+donut(arr,totalMes)+'<div class="leg">'+(arr.length?arr.map(x=>'<div class="row"><span class="dot" style="background:'+x.c+'"></span><span class="nm">'+esc(x.k)+'</span><span class="vv">'+brl(x.v)+'</span></div>').join(''):'<span style="color:var(--faint)">—</span>')+'</div></div></div>';
   }
   const resumo='<div class="count">'+list.length+' custos · '+(months.find(m=>m.ym===per)||{lbl:''}).lbl+'</div>';
-  document.getElementById('content').innerHTML=psel+chips+kpis+extra+resumo+custosList(list)+(cClasse==='todos'?projecaoCustos():'');
+  const sus=CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt);
+  const alerta=sus.length?'<div class="panel" style="margin-bottom:14px;border:1px solid var(--red);background:#fff5f5"><div style="font-weight:700;color:var(--red);margin-bottom:6px">⚠ '+sus.length+(sus.length>1?' contas encerradas ainda têm':' conta encerrada ainda tem')+' parcelas faltando</div>'+sus.map(c=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px"><span><b>'+esc(c.fornecedor||c.descricao)+'</b> · '+brl(c.valor)+' · dia '+(c.venc||'—')+' · '+(+c.pg||0)+'/'+(+c.tt)+'</span><a href="#" style="color:var(--accent);font-weight:700;white-space:nowrap" onclick="event.preventDefault();openCustoForm(\''+c.id+'\')">abrir e reativar</a></div>').join('')+'<div style="font-size:12px;color:var(--muted);margin-top:4px">Se ainda está pagando, abre e clica em ↩ Reativar. Se quitou antes, ajusta as parcelas pagas.</div></div>':'';
+  document.getElementById('content').innerHTML=psel+chips+alerta+kpis+extra+resumo+custosList(list)+(cClasse==='todos'?projecaoCustos():'');
 }
 function projMeses(){return monthOpts(6).map(f=>{const b=CUSTOS.filter(c=>custoAtivoK(c,f.k));return {lbl:f.lbl,k:f.k,v:b.reduce((a,c)=>a+(+c.valor||0),0),n:b.length};});}
 // receita mensal prevista: ADmídia = soma das mensalidades dos clientes ativos; OnPro = média das entradas OnPro dos últimos 3 meses (ou o recebido do mês no Asaas)
