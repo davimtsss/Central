@@ -262,7 +262,8 @@ let MESES=[];
 const TABS=[['overview','Visão geral'],['clientes','Cobranças'],['fluxo','Fluxo de caixa'],['custos','Custos'],['dm','Sócios'],['dre','DRE']];
 const STATUSES=['Pago','Em aberto','Não pago','Urgente','Permuta','Cancelado'];
 const TIPOS=['Anúncio','Corporativo','Híbrido','Venda led','Permuta'];
-const FORMAS=['Pix','Cartão','Boleto','Dinheiro'];
+const FORMAS=['Pix','Cartão','Boleto','Dinheiro','Permuta'];
+function isPermT(t){return sk(t.conta||'')==='permuta'||sk(t.forma||'')==='permuta';}
 const CLASSES=['Fixo','Variável','Salário','Investimento'];
 const CLCOL={fixo:'#4a7fb5',variavel:'#d99a4e',salario:'#8a6bb5',investimento:'#5aa06f'};
 const FRENTES=['OnPro','ADmídia','ADled','ADview'];
@@ -352,7 +353,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-0932';
+const BUILD='1030-1145';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -519,7 +520,7 @@ function txTable(list,showPill){
   const ent=list.filter(t=>t.tipo==='Entrada').reduce((a,t)=>a+(+t.valor||0),0);
   const sai=list.filter(t=>t.tipo==='Saída').reduce((a,t)=>a+(+t.valor||0),0);
   const v2=isV2();let lastD=null;const dia={};if(v2)list.forEach(t=>{const k=t.data||'';dia[k]=dia[k]||{e:0,s:0};if(t.tipo==='Entrada')dia[k].e+=(+t.valor||0);else dia[k].s+=(+t.valor||0);});
-  const rows=list.map(t=>{const e=t.tipo==='Entrada';let dh='';if(v2&&t.data!==lastD){lastD=t.data;const D=dia[t.data||'']||{e:0,s:0};dh='<div class="tr dh">'+esc(t.data||'Sem data')+'<span>'+(D.e?'<b class="e">+'+brl(D.e)+'</b>':'')+(D.s?'<b class="s">−'+brl(D.s)+'</b>':'')+'</span></div>';}return dh+'<div class="tr" onclick="openFluxoForm(\''+t.id+'\')"><span class="dt">'+esc(t.data)+'</span><span class="ds">'+esc(t.desc||t.cat)+'</span><span class="pill2 hc">'+esc(t.cat||'')+'</span><span class="em hf">'+esc(t.emp||'')+(t.conta?' · '+esc(t.conta):'')+'</span><span class="am '+(e?'e':'s')+'">'+(e?'+':'−')+brl(t.valor)+'</span></div>';}).join('');
+  const rows=list.map(t=>{const e=t.tipo==='Entrada';let dh='';if(v2&&t.data!==lastD){lastD=t.data;const D=dia[t.data||'']||{e:0,s:0};dh='<div class="tr dh">'+esc(t.data||'Sem data')+'<span>'+(D.e?'<b class="e">+'+brl(D.e)+'</b>':'')+(D.s?'<b class="s">−'+brl(D.s)+'</b>':'')+'</span></div>';}return dh+'<div class="tr" onclick="openFluxoForm(\''+t.id+'\')"><span class="dt">'+esc(t.data)+'</span><span class="ds">'+esc(t.desc||t.cat)+'</span><span class="pill2 hc">'+esc(t.cat||'')+'</span><span class="em hf">'+esc(t.emp||'')+(t.conta?' · '+esc(t.conta):'')+'</span><span class="am '+(e?'e':'s')+'"'+(e&&isPermT(t)?' style="color:#7a4fd6" title="Permuta"':'')+'>'+(e?'+':'−')+brl(t.valor)+'</span></div>';}).join('');
   return {ent,sai,html:'<div class="tbl"><div class="tr h"><span>Data</span><span>Descrição</span><span class="hc">Categoria</span><span class="hf">Frente</span><span style="text-align:right">Valor</span></div>'+(rows||'<div class="empty">Nada aqui. Clica em <b>+ Lançamento</b>.</div>')+'</div>'};
 }
 function renderFluxo(){
@@ -527,9 +528,9 @@ function renderFluxo(){
   const q=sk(document.getElementById('q').value||'');
   let list=fluxoFilt().filter(t=>fTipo==='todos'||(fTipo==='e'?t.tipo==='Entrada':t.tipo==='Saída')).filter(t=>!q||sk(t.desc).includes(q)||sk(t.emp).includes(q)||sk(t.cat).includes(q));
   list=list.slice().sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
-  const T=txTable(list);
+  const T=txTable(list);const perm=list.filter(t=>t.tipo==='Entrada'&&isPermT(t)).reduce((a,t)=>a+(+t.valor||0),0);const ent=T.ent-perm;
   document.getElementById('content').innerHTML=mesChips('setMesF')+
-    '<div class="kpis"><div class="kc g"><div class="l">Entradas</div><div class="n">'+brlk(T.ent)+'</div></div><div class="kc r"><div class="l">Saídas</div><div class="n">'+brlk(T.sai)+'</div></div><div class="kc b"><div class="l">Saldo</div><div class="n">'+brlk(T.ent-T.sai)+'</div></div><div class="kc"><div class="l">Lançamentos</div><div class="n">'+list.length+'</div></div></div>'+
+    '<div class="kpis"><div class="kc g"><div class="l">Entradas'+(perm?' (dinheiro)':'')+'</div><div class="n">'+brlk(ent)+'</div></div>'+(perm?'<div class="kc"><div class="l">Permuta</div><div class="n" style="color:#7a4fd6">'+brlk(perm)+'</div></div>':'')+'<div class="kc r"><div class="l">Saídas</div><div class="n">'+brlk(T.sai)+'</div></div><div class="kc b"><div class="l">Saldo</div><div class="n">'+brlk(ent-T.sai)+'</div></div><div class="kc"><div class="l">Lançamentos</div><div class="n">'+list.length+'</div></div></div>'+
     '<div class="toolbar"><select onchange="setFTipo(this.value)"><option value="todos"'+(fTipo==='todos'?' selected':'')+'>Tudo</option><option value="e"'+(fTipo==='e'?' selected':'')+'>Só entradas</option><option value="s"'+(fTipo==='s'?' selected':'')+'>Só saídas</option></select><span style="color:var(--faint);font-size:12px">clique numa linha pra editar · busca no topo</span></div>'+T.html;
 }
 /* ===== CUSTOS (aba Financeiro empresas) ===== */
@@ -638,13 +639,13 @@ function renderCustos(){
 function projMeses(){return monthOpts(6).map(f=>{const b=CUSTOS.filter(c=>custoAtivoK(c,f.k));return {lbl:f.lbl,k:f.k,v:b.reduce((a,c)=>a+(+c.valor||0),0),n:b.length};});}
 // receita mensal prevista: ADmídia = soma das mensalidades dos clientes ativos; OnPro = média das entradas OnPro dos últimos 3 meses (ou o recebido do mês no Asaas)
 function receitaPrev(){
-  const ad=CLIENTES.filter(c=>!isLed(c)&&!['permuta','cancelado','encerrado'].includes(sk(c.status))).reduce((a,c)=>a+(+c.valor||0),0);
+  const ad=CLIENTES.filter(c=>!isLed(c)&&sk(c.forma||'')!=='permuta'&&!['permuta','cancelado','encerrado'].includes(sk(c.status))).reduce((a,c)=>a+(+c.valor||0),0);
   const d=new Date();const yms=[1,2,3].map(i=>{const m=new Date(d.getFullYear(),d.getMonth()-i,1);return m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0');});
   const meses=new Set(FLUXO.filter(t=>t.tipo==='Entrada'&&yms.includes(tYm(t))).map(tYm));
   const op3=FLUXO.filter(t=>t.tipo==='Entrada'&&yms.includes(tYm(t))).reduce((a,t)=>a+tSplit(t).filter(x=>x[0]==='OnPro').reduce((b,x)=>b+x[1],0),0);
   let op=meses.size?op3/meses.size:0;if(!op&&ASAAS)op=+ASAAS.recebido_mes||0;
   return {ad,op,total:ad+op};}
-function caixaProj(){const saldo=FLUXO.reduce((a,t)=>a+(t.tipo==='Entrada'?1:-1)*(+t.valor||0),0);const rec=receitaPrev();let s=saldo;
+function caixaProj(){const saldo=FLUXO.filter(t=>!(t.tipo==='Entrada'&&isPermT(t))).reduce((a,t)=>a+(t.tipo==='Entrada'?1:-1)*(+t.valor||0),0);const rec=receitaPrev();let s=saldo;
   return {saldo,rec,meses:projMeses().map((p,i)=>{if(i>0)s+=rec.total-p.v;return Object.assign({},p,{caixa:s});})};}
 function projecaoCustos(){
   if(!CUSTOS.length)return '';
@@ -704,7 +705,7 @@ async function pagouCusto(id){const c=CUSTOS.find(x=>x.id===id);if(!c)return;try
 /* FLUXO form */
 /* empresa + rateio (fluxo e custos) */
 const COMBO='OnPro e ADmídia';
-const CONTAS_BASE=['Cora','Asaas','Infinity Pay','Dinheiro','Cartão de crédito'];
+const CONTAS_BASE=['Cora','Asaas','Infinity Pay','Dinheiro','Cartão de crédito','Permuta'];
 function contasList(cur){const s=new Set(CONTAS_BASE);FLUXO.forEach(t=>{if(t.conta)s.add(t.conta);});if(cur)s.add(cur);return [...s];}
 function isCombo(t){return !!(t&&t.emp2&&t.emp2!=='Não'&&t.emp2!=='');}
 function empSel(id,t){t=t||{};const legacy=(t.emp&&!['OnPro','ADmídia','ADled'].includes(t.emp)&&!isCombo(t))?[t.emp]:[];const opts=['OnPro','ADmídia','ADled',COMBO].concat(legacy);const v=isCombo(t)?COMBO:(t.emp||'ADmídia');return '<select class="fi" id="'+id+'-emp" onchange="toggleRateio(\''+id+'\')">'+opts.map(x=>'<option '+(x===v?'selected':'')+'>'+x+'</option>').join('')+'</select>';}
@@ -881,7 +882,7 @@ async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=
 function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
 async function lancarCliNoFluxo(c,pg,ref){if(!(+c.valor>0)||cliNoFluxo(c,pg,ref))return false;const now=new Date();
-  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:'Variável',pg:0,tt:0,fim:false};
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:sk(c.forma||'')==='permuta'?'Permuta':'Cora',classe:'Variável',pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
 async function removerCliDoFluxo(c,pg){const t=cliNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
 // deve 2+ meses: cada 'Pago' quita só a mensalidade mais antiga
