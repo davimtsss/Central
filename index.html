@@ -263,6 +263,7 @@ const TABS=[['overview','Visão geral'],['clientes','Cobranças'],['fluxo','Flux
 const STATUSES=['Pago','Em aberto','Não pago','Urgente','Permuta','Cancelado'];
 const TIPOS=['Anúncio','Corporativo','Híbrido','Venda led','Permuta'];
 const FORMAS=['Pix','Cartão','Boleto','Dinheiro','Permuta'];
+function isPermCli(c){return sk(c.forma||'')==='permuta'&&sk(c.status||'')!=='cancelado';}
 function isPermT(t){return sk(t.conta||'')==='permuta'||sk(t.forma||'')==='permuta';}
 const CLASSES=['Fixo','Variável','Salário','Investimento'];
 const CLCOL={fixo:'#4a7fb5',variavel:'#d99a4e',salario:'#8a6bb5',investimento:'#5aa06f'};
@@ -353,7 +354,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1145';
+const BUILD='1030-1230';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -439,7 +440,7 @@ function goCobrar(){cfiltro='atrasados';go('clientes');}
 function renderOverview(){
   if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
-  const cobrar=CLIENTES.filter(c=>!isLed(c)&&!['permuta','pago','cancelado'].includes(effSt(c))).map(c=>({c,late:cliLate(c),urg:['naopago','urgente'].includes(effSt(c))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
+  const cobrar=CLIENTES.filter(c=>!isLed(c)&&!isPermCli(c)&&!['permuta','pago','cancelado'].includes(effSt(c))).map(c=>({c,late:cliLate(c),urg:['naopago','urgente'].includes(effSt(c))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
   const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,k:0,lbl:'encerrada com parcelas faltando ('+(+c.pg||0)+'/'+c.tt+')'}))).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
   let maxD=null;FLUXO.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(d<=today&&(!maxD||d>maxD))maxD=d;}});
   const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>=2);
@@ -811,7 +812,7 @@ function renderDRE(){
 }
 
 /* CLIENTES */
-function cmatch(c){const s=effSt(c);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return !isLed(c)&&s!=='permuta';if(cfiltro==='atrasados')return s==='naopago'||s==='urgente';if(cfiltro==='emaberto')return s==='emaberto';if(cfiltro==='pago')return s==='pago';if(cfiltro==='permuta')return s==='permuta';if(cfiltro==='led')return isLed(c);return true;}
+function cmatch(c){const s=effSt(c),P=isPermCli(c);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return !isLed(c)&&s!=='permuta'&&!P;if(cfiltro==='atrasados')return !P&&(s==='naopago'||s==='urgente');if(cfiltro==='emaberto')return !P&&s==='emaberto';if(cfiltro==='pago')return !P&&s==='pago';if(cfiltro==='permuta')return s==='permuta'||P;if(cfiltro==='led')return isLed(c);return true;}
 const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['onpro','OnPro'],['cancelados','Cancelados']];
 function setCF(f){cfiltro=f;renderClientes();}
 function crow(c){
@@ -836,12 +837,12 @@ function toggleVis(){try{localStorage.setItem('cf_vis',isV2()?'classico':'novo')
 function grpHead(cor,nome,n,total){return '<div class="grp"><i style="background:'+cor+'"></i>'+nome+' <span class="gc">· '+n+'</span><span class="gt">'+brl(total)+'</span></div>';}
 function crow2(c){const s=effSt(c),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,late=cliLate(c),atr=(s==='naopago'||s==='urgente');
   const sub=[c.cidade,c.seg].filter(Boolean).map(esc).join(' · ')+(late>=2?' · <span class="rd">'+late+' meses em atraso</span>':'');
-  let vc='—',vcl='';if(d){if(s==='pago')vc='dia '+d;else if(c.mespg&&c.mespg>ymNow()&&s!=='permuta'){vc='próx. '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1];}else if(atr){vc='venceu dia '+d;vcl=' late';}else vc='vence dia '+d;}
+  let vc='—',vcl='';if(d){if(s==='pago')vc='dia '+d;else if(c.mespg&&c.mespg>ymNow()&&s!=='permuta'){vc='próx. '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1];}else if(atr&&!isPermCli(c)){vc='venceu dia '+d;vcl=' late';}else vc='vence dia '+d;}
   const opts=STATUSES.map(o=>'<option '+(sk(o)===s?'selected':'')+'>'+o+'</option>').join('');
   const st=CANW?'<select class="stsel s-'+s+'" onchange="setStSel(\''+c.id+'\',this.value)">'+opts+'</select>':'<span>'+(LABEL[s]||esc(c.status))+'</span>';
   return '<div class="c2"><div class="nm" onclick="openDetail(\''+c.id+'\')"><b>'+esc(c.empresa)+'</b><small>'+(sub||'&nbsp;')+'</small></div><div class="vc'+vcl+'">'+vc+'</div><div class="pc">'+(tt>0?pg+'/'+tt:'—')+'</div><div class="vl">'+(c.valor?brl(c.valor)+'<small>/mês</small>':'—')+'</div>'+st+'</div>';}
 function clientesV2(list){
-  const G=[['Precisa cobrar','var(--red)',c=>['naopago','urgente'].includes(effSt(c)),c=>(+c.valor||0)*Math.max(1,cliLate(c))],['A vencer','var(--accent)',c=>effSt(c)==='emaberto',c=>+c.valor||0],['Pagos este mês','var(--green)',c=>effSt(c)==='pago',c=>+c.valor||0],['Permuta','#7a5fc4',c=>effSt(c)==='permuta',c=>+c.valor||0],['Cancelados','#9aa3ad',c=>effSt(c)==='cancelado',c=>+c.valor||0]];
+  const G=[['Precisa cobrar','var(--red)',c=>!isPermCli(c)&&['naopago','urgente'].includes(effSt(c)),c=>(+c.valor||0)*Math.max(1,cliLate(c))],['A vencer','var(--accent)',c=>!isPermCli(c)&&effSt(c)==='emaberto',c=>+c.valor||0],['Pagos este mês','var(--green)',c=>!isPermCli(c)&&effSt(c)==='pago',c=>+c.valor||0],['Permuta','#7a5fc4',c=>effSt(c)==='permuta'||isPermCli(c),c=>+c.valor||0],['Cancelados','#9aa3ad',c=>effSt(c)==='cancelado',c=>+c.valor||0]];
   let h='<div class="ctbl"><div class="c2 h"><span>Cliente</span><span>Vencimento</span><span>Parcelas</span><span style="text-align:right">Valor</span><span>Status</span></div>';
   G.forEach(([nome,cor,f,v])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+v(c),0))+it.map(crow2).join('');});
   return h+'</div>';}
@@ -882,7 +883,7 @@ async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=
 function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
 async function lancarCliNoFluxo(c,pg,ref){if(!(+c.valor>0)||cliNoFluxo(c,pg,ref))return false;const now=new Date();
-  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:sk(c.forma||'')==='permuta'?'Permuta':'Cora',classe:'Variável',pg:0,tt:0,fim:false};
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:(sk(c.forma||'')==='permuta'||sk(c.status||'')==='permuta')?'Permuta':'Cora',classe:'Variável',pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
 async function removerCliDoFluxo(c,pg){const t=cliNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
 // deve 2+ meses: cada 'Pago' quita só a mensalidade mais antiga
