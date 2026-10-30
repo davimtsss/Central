@@ -356,7 +356,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1437';
+const BUILD='1030-1451';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -458,7 +458,7 @@ function renderOverview(){
   const camI='<img class="tc-img" src="'+ICONS.cam+'" alt="">';const ckp=checkPend();
   const c5=!checkLoaded?card('',camI,'Check-in fotográfico','…',[],'openCheckins()','Carregando…'):(checkErr?card('',camI,'Check-in fotográfico','!',[['Tabela ainda não criada','ver como →']],'openCheckins()',''):card(ckp.length?'warn':'ok',camI,'Check-in fotográfico',ckp.length,ckp.map(x=>[esc(x.c.nome),x.d?'há '+x.d+'d':'hoje']),'openCheckins()','Ninguém pendente ✓'));
   const c4=!asaasLoaded?card('','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças','…',[],'goOnPro()','Carregando…'):(asaasErr?card('','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças','!',[['Asaas ainda não conectado','configurar →']],'goOnPro()',''):card(asaasAgg().length?'warn':'ok','<img class="tc-img" src="'+ICONS.onpro+'" alt="OnPro">','Cobranças',asaasAgg().length,asaasAgg().map(x=>[esc(x.nome),x.n+' venc. · '+brl(x.total)]),'goOnPro()','Nenhum atraso na OnPro ✓'));
-  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div><div class="tgrid">'+c1+c2+c5+c3+'</div>'+projecaoCustos()+kpis;
+  document.getElementById('content').innerHTML='<div class="count">O que precisa ser feito · '+today.toLocaleDateString('pt-BR')+'</div>'+fixAtrasoBar()+'<div class="tgrid">'+c1+c2+c5+c3+'</div>'+projecaoCustos()+kpis;
 }
 
 /* ===== ASAAS (OnPro) ===== */
@@ -853,6 +853,13 @@ function custosV2(list){
   let h='<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>';
   G.forEach(([nome,cor,f])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+(+c.valor||0),0))+it.map(custoRow).join('');});
   return h+'</div>';}
+// correção pontual (30/10/2026): clientes antigos com mês preso na ficha. Davi informou quantos meses cada um deve de verdade
+const FIX_ATRASO=[['juniorcar',1],['jhowbatata',1],['magnific',1],['construtorarodrigues',1],['mundial',2]];
+function fixAtrasoPend(){const out=[];FIX_ATRASO.forEach(([k,n])=>{const m=CLIENTES.filter(c=>sk(c.empresa).includes(k)&&sk(c.status)!=='cancelado');if(m.length===1&&cliLate(m[0])!==n)out.push({c:m[0],n});});return out;}
+function fixAtrasoBar(){const p=fixAtrasoPend();if(!p.length||!CANW)return '';return '<div class="panel" style="border:1px solid var(--red);padding:12px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>Corrigir atraso de '+p.length+' cliente'+(p.length>1?'s':'')+'</b><div style="font-size:12px;color:var(--muted);margin-top:3px">'+p.map(x=>esc(x.c.empresa)+': '+cliLate(x.c)+' → '+x.n+(x.n>1?' meses':' mês')).join(' · ')+'</div></div><button class="save" onclick="guarded(fixAtraso)">Corrigir agora</button></div>';}
+async function fixAtraso(){const p=fixAtrasoPend(),now=ymNow(),td=new Date().getDate();let ok=0;
+  for(const x of p){const d=parseInt(x.c.venc)||0,venceu=(d&&td>d)?1:0;try{await DB.collection('clientes').doc(x.c.id).update({status:'Não pago',mespg:ymAdd(now,-(x.n-venceu))});ok++;}catch(e){writeErr(e);}}
+  await loadClientes();toast(ok+' cliente'+(ok>1?'s':'')+' corrigido'+(ok>1?'s':'')+' ✓');renderActive();}
 function renderClientes(){
   if(!DB){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   if(!cloaded){document.getElementById('content').innerHTML='<div class="state">Carregando clientes…</div>';return;}
@@ -862,7 +869,7 @@ function renderClientes(){
   list.sort((a,b)=>((parseInt(a.venc)||99)-(parseInt(b.venc)||99))||sk(a.empresa).localeCompare(sk(b.empresa)));
   let bd=!CLIENTES.length?'<div class="empty"><h3>Nenhum cliente</h3>Clica em <b>+ Cliente</b>.</div>':!list.length?'<div class="empty"><h3>Nada nesse filtro ✓</h3></div>':(isV2()?'<div class="count">'+list.length+' clientes</div>'+clientesV2(list):'<div class="count">'+list.length+' clientes · por vencimento</div><div class="ctbl"><div class="crow h"><span>Cliente</span><span>Status</span></div>'+list.map(crow).join('')+'</div>');
   const share=(['atrasados','emaberto','todos'].includes(cfiltro)&&list.length)?'<div class="sharebar"><button class="cancel" onclick="openShare()">📤 Compartilhar lista</button></div>':'';
-  document.getElementById('content').innerHTML='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>'+share+bd;
+  document.getElementById('content').innerHTML='<div class="ctabs">'+CFILT.map(f=>'<div class="ct '+(cfiltro===f[0]?'on':'')+'" onclick="setCF(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>'+share+fixAtrasoBar()+bd;
 }
 // ===== Compartilhar lista de cobranças (texto p/ WhatsApp, copiar, imprimir/PDF) =====
 function shareMarca(){return cfiltro==='onpro'?'OnPro':'ADmídia';}
