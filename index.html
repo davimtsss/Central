@@ -192,6 +192,7 @@ html,body{overflow-x:hidden;max-width:100%}
 /* ===== VISUAL NOVO (liga/desliga no botão do canto) ===== */
 
 .ov-h3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;width:100%}
+.ov-h3.two{grid-template-columns:repeat(2,1fr)}
 .ov-h3 div{background:rgba(255,255,255,.08);border-radius:16px;padding:14px 18px}
 .ov-h3 span{display:block;font-size:12.5px;opacity:.75}
 .ov-h3 b{display:block;font-size:28px;font-weight:800;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -406,7 +407,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1030-1844';
+const BUILD='1030-1845';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -526,7 +527,7 @@ function overviewNovo(o){
     .concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,late:true,ord:-1,lbl:'encerrada c/ parcelas faltando'})))
     .sort((a,b)=>(a.ord-b.ord));
   const pagT=pend.reduce((a,x)=>a+(+x.c.valor||0),0),pagAtr=pend.filter(x=>x.late).length;
-  const hero='<div class="ov-hero"><div class="ov-cap">'+mesN.charAt(0).toUpperCase()+mesN.slice(1)+' até agora</div><div class="ov-h3"><div><span>Entrou</span><b>'+brl(entD)+'</b><small>em dinheiro</small></div><div><span>Saiu</span><b>'+brl(sai)+'</b><small>pagamentos e custos</small></div><div><span>Permuta</span><b>'+brl(perm)+'</b><small>em produtos e serviços</small></div></div></div>';
+  const hero='<div class="ov-hero"><div class="ov-cap">'+mesN.charAt(0).toUpperCase()+mesN.slice(1)+' até agora</div><div class="ov-h3 two"><div><span>Entrou</span><b>'+brl(entD+perm)+'</b><small>'+(perm?brl(entD)+' em dinheiro · '+brl(perm)+' em permuta':'tudo em dinheiro')+'</small></div><div><span>Saiu</span><b>'+brl(sai)+'</b><small>pagamentos e custos</small></div></div></div>';
     +'<div class="ov-h-r"><div class="ov-st"><span>Entrou em dinheiro</span><b>'+brl(entD)+'</b></div><div class="ov-st"><span>Entrou em permuta</span><b>'+brl(perm)+'</b></div><div class="ov-st"><span>Saiu</span><b>'+brl(sai)+'</b></div></div></div>';
   const duo='<div class="ov-duo"><div class="ov-mini" onclick="goCobrar()"><span>A receber</span><b class="g">'+brl(cobT)+'</b><small>'+cob.length+' cliente'+(cob.length===1?'':'s')+' pra cobrar</small></div><div class="ov-mini" onclick="go(\'custos\')"><span>Falta pagar</span><b class="r">'+brl(pagT)+'</b><small>'+pend.length+' conta'+(pend.length===1?'':'s')+(pagAtr?' · '+pagAtr+' atrasada'+(pagAtr>1?'s':''):'')+'</small></div></div>';
   const N=7;
