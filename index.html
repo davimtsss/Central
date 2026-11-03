@@ -416,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1103-1213';
+const BUILD='1103-1222';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -536,16 +536,16 @@ function overviewNovo(o){
   const res=entD+perm-sai,mesN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][+mm-1]||mm;
   const cob=cobrar.map(x=>({c:x.c,n:Math.max(1,x.late),v:(+x.c.valor||0)*Math.max(1,x.late)}));
   const cobT=cob.reduce((a,x)=>a+x.v,0);
-  const pend=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc||0,l=custoLate(c)>=1;return {c,late:l,ord:l?0:(v||99),lbl:l?(v&&v<td?'atrasada '+(td-v)+'d':'atrasada'):(v===td?'vence hoje':v===tom?'vence amanhã':(v?'dia '+String(v).padStart(2,'0'):'sem dia'))};})
+  const pend=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc||0,nl=custoLate(c),l=nl>=1;return {c,late:l,n:Math.max(1,nl),ord:l?0:(v||99),lbl:l?(nl>=2?nl+' vencidas · desde '+ymLabel(custoDesde(c)):(v&&v<td?'atrasada '+(td-v)+'d':'atrasada')):(v===td?'vence hoje':v===tom?'vence amanhã':(v?'dia '+String(v).padStart(2,'0'):'sem dia'))};})
     .concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,late:true,ord:-1,lbl:'encerrada c/ parcelas faltando'})))
     .sort((a,b)=>(a.ord-b.ord));
-  const pagT=pend.reduce((a,x)=>a+(+x.c.valor||0),0),pagAtr=pend.filter(x=>x.late).length;
+  const pagT=pend.reduce((a,x)=>a+(+x.c.valor||0)*(x.late?(x.n||1):1),0),pagAtr=pend.filter(x=>x.late).length;
   const hero='<div class="ov-hero"><div class="ov-cap">'+mesN.charAt(0).toUpperCase()+mesN.slice(1)+' até agora</div><div class="ov-h3 two"><div><span>Entrou</span><b>'+brl(entD+perm)+'</b><small>'+(perm?brl(entD)+' em dinheiro · '+brl(perm)+' em permuta':'tudo em dinheiro')+'</small></div><div><span>Saiu</span><b>'+brl(sai)+'</b><small>pagamentos e custos</small></div></div></div>';
     +'<div class="ov-h-r"><div class="ov-st"><span>Entrou em dinheiro</span><b>'+brl(entD)+'</b></div><div class="ov-st"><span>Entrou em permuta</span><b>'+brl(perm)+'</b></div><div class="ov-st"><span>Saiu</span><b>'+brl(sai)+'</b></div></div></div>';
   const duo='<div class="ov-duo"><div class="ov-mini" onclick="goCobrar()"><span>A receber</span><b class="g">'+brl(cobT)+'</b><small>'+cob.length+' cliente'+(cob.length===1?'':'s')+' pra cobrar</small></div><div class="ov-mini" onclick="go(\'custos\')"><span>Falta pagar</span><b class="r">'+brl(pagT)+'</b><small>'+pend.length+' conta'+(pend.length===1?'':'s')+(pagAtr?' · '+pagAtr+' atrasada'+(pagAtr>1?'s':''):'')+'</small></div></div>';
   const N=7;
   const lCob=cob.length?cob.slice(0,N).map(x=>'<div class="ov-r" onclick="openDetail(\''+x.c.id+'\')"><i class="ov-av">'+ovIni(x.c.empresa)+'</i><div class="ov-nm"><b>'+esc(x.c.empresa)+'</b><small>'+(x.n>1?'<em class="rd">'+x.n+' meses</em>':'1 mês')+(x.c.venc?' · venceu dia '+x.c.venc:'')+'</small></div><div class="ov-v">'+brl(x.v)+'</div></div>').join(''):'<div class="ov-ok">Ninguém pra cobrar ✓</div>';
-  const lPag=pend.length?pend.slice(0,N).map(x=>'<div class="ov-r" onclick="openCustoForm(\''+x.c.id+'\')"><i class="ov-dot'+(x.late?' rd':'')+'"></i><div class="ov-nm"><b>'+esc(x.c.fornecedor||x.c.descricao)+'</b><small'+(x.late?' class="rd"':'')+'>'+x.lbl+'</small></div><div class="ov-v">'+brl(x.c.valor)+'</div></div>').join(''):'<div class="ov-ok">Tudo pago ✓</div>';
+  const lPag=pend.length?pend.slice(0,N).map(x=>'<div class="ov-r" onclick="openCustoForm(\''+x.c.id+'\')"><i class="ov-dot'+(x.late?' rd':'')+'"></i><div class="ov-nm"><b>'+esc(x.c.fornecedor||x.c.descricao)+'</b><small'+(x.late?' class="rd"':'')+'>'+x.lbl+'</small></div><div class="ov-v">'+brl((+x.c.valor||0)*(x.late?(x.n||1):1))+'</div></div>').join(''):'<div class="ov-ok">Tudo pago ✓</div>';
   const more=(n,js)=>n>N?'<div class="ov-more" onclick="'+js+'">ver todos ('+n+') →</div>':'';
   const lists='<div class="ov-cols"><div class="ov-box"><div class="ov-bh"><span>Para cobrar</span><b>'+brl(cobT)+'</b></div>'+lCob+more(cob.length,'goCobrar()')+'</div><div class="ov-box"><div class="ov-bh"><span>Para pagar · '+mesN.toLowerCase()+'</span><b>'+brl(pagT)+'</b></div>'+lPag+more(pend.length,"go('custos')")+'</div></div>';
   const chip=(ico,t,val,sub,js,warn)=>'<div class="ov-chip'+(warn?' warn':'')+'" onclick="'+js+'"><img src="'+ico+'" alt=""><div><b>'+t+'</b><small>'+sub+'</small></div><span>'+val+'</span></div>';
@@ -695,6 +695,8 @@ function custoOff(c){const now=ymNow();return (sk(c.status)!=='pago'&&c.mespg&&c
 function custoAtivoK(c,k){if(c.fim)return false;const off=custoOff(c);if(k<off)return false;if(c.grupo==='Investimento'&&(+c.tt||0)>0){const pn=custoPagoMes(c)?1:0;if(k===0&&pn)return true;return ((+c.tt||0)-(+c.pg||0))>k-off-pn;}return true;}
 // custo antigo sem mês registrado (veio da planilha): 'Pago' conta como pago em out/2026; não pago conta como pendente desde out/2026
 function custoQuitado(c){return +c.tt>0&&(+c.pg||0)>=+c.tt;}
+// mês mais antigo que está em aberto
+function custoDesde(c){return sk(c.status||'')==='pago'?ymAdd(custoMesPg(c),1):(c.mespg||'2026-10');}
 function custoMesPg(c){return c.mespg||(sk(c.status||'')==='pago'?'2026-10':null);}
 function proxCustoDefault(c){const now=ymNow();if(sk(c.status||'')==='pago')return ymAdd(custoMesPg(c),1);return c.mespg||now;}
 function sugProxK(v){const d=parseInt(v)||0,sel=document.getElementById('k-prox');if(!sel||sel.dataset.mexeu)return;sel.value=(d&&new Date().getDate()>d)?ymAdd(ymNow(),1):ymNow();}
@@ -705,15 +707,20 @@ function custoEmpresa(list){const e={};list.forEach(c=>{const v=+c.valor||0;if(c
 function statusCusto(c){if(custoPagoMes(c))return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
 // ===== Pago em Custos → lança automaticamente no Fluxo (e desfaz se desmarcar) =====
-function custoFluxoDesc(c,pg){const tt=+c.tt||0;return (c.fornecedor||c.descricao||'Custo')+(tt>0?' · parcela '+pg+'/'+tt:'');}
+function custoFluxoDesc(c,pg,ref){const tt=+c.tt||0;return (c.fornecedor||c.descricao||'Custo')+(tt>0?' · parcela '+pg+'/'+tt:(ref&&ref!==ymNow()?' · '+ymLabel(ref):''));}
 function custoCat(c){return c.grupo==='Salário'?'Salário/Folha':c.grupo==='Investimento'?'Equipamento':'Mensalidade/Assinatura';}
-function custoNoFluxo(c,pg){const desc=custoFluxoDesc(c,pg);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
+function custoNoFluxo(c,pg,ref){const desc=custoFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Saída'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
-async function lancarCustoNoFluxo(c,pg){if(custoNoFluxo(c,pg))return false;const now=new Date();
-  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Saída',emp:c.emp||'OnPro',emp2:c.emp2||'',ppri:(c.ppri!=null?+c.ppri:50),cat:custoCat(c),descricao:custoFluxoDesc(c,pg),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:(c.grupo==='Salário'?'Salário':c.grupo==='Investimento'?'Investimento':'Fixo'),pg:0,tt:0,fim:false};
+async function lancarCustoNoFluxo(c,pg,ref){if(custoNoFluxo(c,pg,ref))return false;const now=new Date();
+  const row={id:'f'+Date.now(),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Saída',emp:c.emp||'OnPro',emp2:c.emp2||'',ppri:(c.ppri!=null?+c.ppri:50),cat:custoCat(c),descricao:custoFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:'Cora',classe:(c.grupo==='Salário'?'Salário':c.grupo==='Investimento'?'Investimento':'Fixo'),pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
 async function removerCustoDoFluxo(c,pg){const t=custoNoFluxo(c,pg);if(!t)return false;await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(t.id));return true;}
-async function marcarPago(c){const tt=+c.tt||0,was=custoPagoMes(c),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
+async function marcarPago(c){const late=custoLate(c);
+  if(late>=2){const tt=+c.tt||0,ref=custoDesde(c),pg=tt>0?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
+    await restWrite('PATCH','custos',{status:'Em aberto',mespg:ymAdd(ref,1),pg:pg},'id=eq.'+encodeURIComponent(c.id));
+    let l=false,err=false;try{l=await lancarCustoNoFluxo(c,pg,ref);}catch(e){err=true;diag('fluxo auto falhou: '+(e&&e.message));}
+    if(err)toastErr('Pago, mas a saída no fluxo não foi. Lança no Fluxo de caixa.');else toast('Pago 1 de '+late+' ('+ymLabel(ref)+') · ainda falta'+(late-1>1?'m '+(late-1):' 1')+(l?' · lançado no fluxo ✓':''));await loadCustos();await loadFluxo();return;}
+  const tt=+c.tt||0,was=custoPagoMes(c),pg=(!was&&tt>0)?Math.min((+c.pg||0)+1,tt):(+c.pg||0);
   await restWrite('PATCH','custos',{status:'Pago',mespg:ymNow(),pg:pg},'id=eq.'+encodeURIComponent(c.id));
   let l=false,err=false;try{l=await lancarCustoNoFluxo(c,pg);}catch(e){err=true;diag('fluxo auto falhou: '+(e&&e.message));}
   if(err)toastErr('Pago, mas a saída no fluxo não foi. Lança no Fluxo de caixa.');else toast('Pago'+(tt>0?' '+pg+'/'+tt:'')+(l?' · lançado no fluxo ✓':' · já estava no fluxo'));await loadCustos();await loadFluxo();}
@@ -728,7 +735,7 @@ function custoRow(c){
   const late=custoLate(c)>=1&&statusCusto(c)!=='Pago';
   const sub=[c.descricao,emp].filter(Boolean).map(esc).join(' · ')+(c.obs?' 📝':'');
   return '<div class="krow'+(late?' late':'')+'"><div class="k-nm" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+sub+'</div></div>'
-    +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>atrasada</small>':(custoOff(c)&&c.venc?'<small style="color:var(--muted)">'+(+c.pg?'próxima':'1ª')+' '+String(c.venc).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</small>':''))+'</div>'
+    +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>'+(custoLate(c)>=2?custoLate(c)+' vencidas':'atrasada')+'</small>':(custoOff(c)&&c.venc?'<small style="color:var(--muted)">'+(+c.pg?'próxima':'1ª')+' '+String(c.venc).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</small>':''))+'</div>'
     +'<div class="k-parc" onclick="openCustoForm(\''+c.id+'\')">'+pc+'</div>'
     +'<div class="k-val" onclick="openCustoForm(\''+c.id+'\')">'+brl(c.valor)+'</div>'
     +'<div class="k-st">'+((custoQuitado(c)&&!custoPagoMes(c)&&!c.fim)?'<span class="stsel s-pago" style="display:inline-block">Quitado ✓</span>':custoStatusSel(c))+'</div></div>';
@@ -841,8 +848,9 @@ async function _saveCusto(){
   const prox=g('prox');if(sk(row.status)!=='pago'&&prox&&(!old||prox!==proxCustoDefault(old)||sk(old.status)==='pago'))row.mespg=prox;
   if(!row.fornecedor&&!row.descricao){toast('Põe fornecedor ou descrição');return;}
   let virouPago=false;if(sk(row.status)==='pago'&&!(old&&custoPagoMes(old))){virouPago=true;row.mespg=ymNow();if(row.tt>0&&(old?row.pg===(+old.pg||0):row.pg===0))row.pg=Math.min(row.pg+1,row.tt);}
+  let refPg=null;if(virouPago&&old&&custoLate(old)>=2){refPg=custoDesde(old);row.status='Em aberto';row.mespg=ymAdd(refPg,1);}
   try{await upsertSafe('custos',row);let msg=custEditId?'Salvo ✓':'Custo adicionado ✓';
-    if(virouPago){try{const l=await lancarCustoNoFluxo(row,row.pg);msg+=' · Pago'+(l?' · lançado no fluxo ✓':' · já estava no fluxo');}catch(e){diag('saída (form) falhou: '+(e&&e.message));msg='';toastErr('Salvo como Pago, mas a saída no fluxo não foi. Lança no Fluxo de caixa.');}await loadFluxo();}
+    if(virouPago){try{const l=await lancarCustoNoFluxo(row,row.pg,refPg);msg+=(refPg?' · pagou '+ymLabel(refPg)+', ainda falta '+(custoLate(old)-1):' · Pago')+(l?' · lançado no fluxo ✓':' · já estava no fluxo');}catch(e){diag('saída (form) falhou: '+(e&&e.message));msg='';toastErr('Salvo como Pago, mas a saída no fluxo não foi. Lança no Fluxo de caixa.');}await loadFluxo();}
     if(msg)toast(msg);closeOv();await loadCustos();}catch(e){console.warn('saveCusto',e);toastErr('Erro ao salvar: '+((e&&e.message)||'tenta de novo'));}
 }
 async function delCusto(id){try{await restWrite('DELETE','custos',null,'id=eq.'+encodeURIComponent(id));toast('Excluído');closeOv();await loadCustos();}catch(e){writeErr(e);}}
@@ -999,7 +1007,7 @@ function custosFuturo(list,k){let h='<div class="ctbl"><div class="krow h"><span
 function custosV2(list){
   const G=[['Atrasadas','var(--red)',c=>statusCusto(c)==='Atrasado'],['A vencer','var(--accent)',c=>['Em aberto','Urgente'].includes(statusCusto(c))],['Pagas este mês','var(--green)',c=>statusCusto(c)==='Pago']];
   let h='<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>';
-  G.forEach(([nome,cor,f])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+(+c.valor||0),0))+it.map(custoRow).join('');});
+  G.forEach(([nome,cor,f])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+(+c.valor||0)*(nome==='Atrasadas'?Math.max(1,custoLate(c)):1),0))+it.map(custoRow).join('');});
   return h+'</div>';}
 // correção pontual (30/10/2026): clientes antigos com mês preso na ficha. Davi informou quantos meses cada um deve de verdade
 const FIX_ATRASO=[['juniorcar',1],['jhowbatata',1],['magnific',1],['construtorarodrigues',1],['mundial',2]];
