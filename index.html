@@ -416,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1103-1222';
+const BUILD='1103-1716';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -1010,7 +1010,7 @@ function custosV2(list){
   G.forEach(([nome,cor,f])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+(+c.valor||0)*(nome==='Atrasadas'?Math.max(1,custoLate(c)):1),0))+it.map(custoRow).join('');});
   return h+'</div>';}
 // correção pontual (30/10/2026): clientes antigos com mês preso na ficha. Davi informou quantos meses cada um deve de verdade
-const FIX_ATRASO=[['juniorcar',1],['jhowbatata',1],['magnific',1],['construtorarodrigues',1],['mundial',2]];
+const FIX_ATRASO=[]; // aviso 'Corrigir atraso' desligado a pedido do Davi (03/11)
 function fixAtrasoPend(){const out=[];FIX_ATRASO.forEach(([k,n])=>{const m=CLIENTES.filter(c=>sk(c.empresa).includes(k)&&sk(c.status)!=='cancelado');if(m.length===1&&cliLate(m[0])!==n)out.push({c:m[0],n});});return out;}
 function fixAtrasoBar(){const p=fixAtrasoPend();if(!p.length||!CANW)return '';return '<div class="panel" style="border:1px solid var(--red);padding:12px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>Corrigir atraso de '+p.length+' cliente'+(p.length>1?'s':'')+'</b><div style="font-size:12px;color:var(--muted);margin-top:3px">'+p.map(x=>esc(x.c.empresa)+': '+cliLate(x.c)+' → '+x.n+(x.n>1?' meses':' mês')).join(' · ')+'</div></div><button class="save" onclick="guarded(fixAtraso)">Corrigir agora</button></div>';}
 async function fixAtraso(){const p=fixAtrasoPend(),now=ymNow(),td=new Date().getDate();let ok=0;
