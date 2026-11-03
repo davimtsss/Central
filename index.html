@@ -416,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1103-1210';
+const BUILD='1103-1213';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -503,7 +503,7 @@ function renderOverview(){
   if(sb&&(!floaded||!cloaded||!custoLoaded)){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
   const today=new Date(),td=today.getDate(),tom=new Date(today.getFullYear(),today.getMonth(),td+1).getDate();
   const cobrar=CLIENTES.filter(c=>!isLed(c)&&!isPermCli(c)&&!['permuta','pago','cancelado'].includes(effSt(c))).map(c=>({c,late:cliLate(c),urg:['naopago','urgente'].includes(effSt(c))})).filter(x=>x.urg||x.late>=1).sort((a,b)=>(b.late-a.late)||((b.urg?1:0)-(a.urg?1:0)));
-  const pagar=CUSTOS.filter(c=>!c.fim&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,k:0,lbl:'encerrada com parcelas faltando ('+(+c.pg||0)+'/'+c.tt+')'}))).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
+  const pagar=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&c.venc&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc;let k=9,lbl='';if(custoLate(c)>=1){k=0;lbl=v<td?'atrasada '+(td-v)+'d':'atrasada';}else if(v===td){k=1;lbl='vence hoje';}else if(v===tom){k=2;lbl='vence amanhã';}return{c,k,lbl};}).filter(x=>x.k<9).concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,k:0,lbl:'encerrada com parcelas faltando ('+(+c.pg||0)+'/'+c.tt+')'}))).sort((a,b)=>(a.k-b.k)||(+a.c.venc-+b.c.venc));
   let maxD=null;FLUXO.forEach(t=>{if(/^asaas_/.test(t.id||''))return;const p=(t.data||'').split('/');if(p.length===3){const d=new Date(+p[2],+p[1]-1,+p[0]);if(d<=today&&(!maxD||d>maxD))maxD=d;}});
   const diasSem=maxD?Math.floor((today-maxD)/86400000):null;const lancar=(diasSem===null||diasSem>=2);
   const mm=ymNow().split('-')[1];const tx=FLUXO.filter(t=>t.mes===mm);
@@ -536,7 +536,7 @@ function overviewNovo(o){
   const res=entD+perm-sai,mesN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'][+mm-1]||mm;
   const cob=cobrar.map(x=>({c:x.c,n:Math.max(1,x.late),v:(+x.c.valor||0)*Math.max(1,x.late)}));
   const cobT=cob.reduce((a,x)=>a+x.v,0);
-  const pend=CUSTOS.filter(c=>!c.fim&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc||0,l=custoLate(c)>=1;return {c,late:l,ord:l?0:(v||99),lbl:l?(v&&v<td?'atrasada '+(td-v)+'d':'atrasada'):(v===td?'vence hoje':v===tom?'vence amanhã':(v?'dia '+String(v).padStart(2,'0'):'sem dia'))};})
+  const pend=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&statusCusto(c)!=='Pago'&&!custoOff(c)).map(c=>{const v=+c.venc||0,l=custoLate(c)>=1;return {c,late:l,ord:l?0:(v||99),lbl:l?(v&&v<td?'atrasada '+(td-v)+'d':'atrasada'):(v===td?'vence hoje':v===tom?'vence amanhã':(v?'dia '+String(v).padStart(2,'0'):'sem dia'))};})
     .concat(CUSTOS.filter(c=>c.fim&&+c.tt>0&&(+c.pg||0)<+c.tt).map(c=>({c,late:true,ord:-1,lbl:'encerrada c/ parcelas faltando'})))
     .sort((a,b)=>(a.ord-b.ord));
   const pagT=pend.reduce((a,x)=>a+(+x.c.valor||0),0),pagAtr=pend.filter(x=>x.late).length;
@@ -694,12 +694,13 @@ function custoOff(c){const now=ymNow();return (sk(c.status)!=='pago'&&c.mespg&&c
 // parcela paga este mês já está no 'pg': continua aparecendo no mês (em Pagas) e os meses seguintes contam a partir da próxima
 function custoAtivoK(c,k){if(c.fim)return false;const off=custoOff(c);if(k<off)return false;if(c.grupo==='Investimento'&&(+c.tt||0)>0){const pn=custoPagoMes(c)?1:0;if(k===0&&pn)return true;return ((+c.tt||0)-(+c.pg||0))>k-off-pn;}return true;}
 // custo antigo sem mês registrado (veio da planilha): 'Pago' conta como pago em out/2026; não pago conta como pendente desde out/2026
+function custoQuitado(c){return +c.tt>0&&(+c.pg||0)>=+c.tt;}
 function custoMesPg(c){return c.mespg||(sk(c.status||'')==='pago'?'2026-10':null);}
 function proxCustoDefault(c){const now=ymNow();if(sk(c.status||'')==='pago')return ymAdd(custoMesPg(c),1);return c.mespg||now;}
 function sugProxK(v){const d=parseInt(v)||0,sel=document.getElementById('k-prox');if(!sel||sel.dataset.mexeu)return;sel.value=(d&&new Date().getDate()>d)?ymAdd(ymNow(),1):ymNow();}
 function custoPagoMes(c){return sk(c.status)==='pago'&&custoMesPg(c)>=ymNow();}
 // Pago: mespg = mês pago. Outros status: mespg = mês da conta pendente (o form grava o mês atual ao criar)
-function custoLate(c){if(c.fim)return 0;const d=+c.venc||0,now=ymNow(),venceu=(d&&new Date().getDate()>d)?1:0;if(sk(c.status)==='pago'){const mp=custoMesPg(c);if(mp>=now)return 0;return Math.max(0,ymDiff(mp,now)-1+venceu);}const mq=c.mespg||'2026-10';if(mq>now)return 0;const base=(mq<now)?ymDiff(mq,now):0;return base+venceu;}
+function custoLate(c){if(c.fim||custoQuitado(c))return 0;const d=+c.venc||0,now=ymNow(),venceu=(d&&new Date().getDate()>d)?1:0;if(sk(c.status)==='pago'){const mp=custoMesPg(c);if(mp>=now)return 0;return Math.max(0,ymDiff(mp,now)-1+venceu);}const mq=c.mespg||'2026-10';if(mq>now)return 0;const base=(mq<now)?ymDiff(mq,now):0;return base+venceu;}
 function custoEmpresa(list){const e={};list.forEach(c=>{const v=+c.valor||0;if(c.emp2&&c.emp2!=='Não'&&c.emp2!==''&&c.emp2!==c.emp){const p=(c.ppri!=null?+c.ppri:50)/100;e[c.emp||'—']=(e[c.emp||'—']||0)+v*p;e[c.emp2]=(e[c.emp2]||0)+v*(1-p);}else{const k=c.emp||'—';e[k]=(e[k]||0)+v;}});return e;}
 function statusCusto(c){if(custoPagoMes(c))return 'Pago';if(custoLate(c)>=1)return 'Atrasado';if(sk(c.status)==='urgente')return 'Urgente';return 'Em aberto';}
 function custoStatusSel(c){const s=statusCusto(c),sc=sk(s);let opts=(s==='Atrasado'?'<option selected>Atrasado</option>':'')+['Pago','Em aberto','Urgente'].map(o=>'<option'+((s!=='Atrasado'&&o===s)?' selected':'')+'>'+o+'</option>').join('');const cls=sc==='pago'?'s-pago':((sc==='atrasado'||sc==='urgente')?'s-naopago':'');return '<select class="stsel '+cls+'" onclick="event.stopPropagation()" onchange="setCustoStatus(\''+c.id+'\',this.value)">'+opts+'</select>';}
@@ -730,9 +731,9 @@ function custoRow(c){
     +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>atrasada</small>':(custoOff(c)&&c.venc?'<small style="color:var(--muted)">'+(+c.pg?'próxima':'1ª')+' '+String(c.venc).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</small>':''))+'</div>'
     +'<div class="k-parc" onclick="openCustoForm(\''+c.id+'\')">'+pc+'</div>'
     +'<div class="k-val" onclick="openCustoForm(\''+c.id+'\')">'+brl(c.valor)+'</div>'
-    +'<div class="k-st">'+custoStatusSel(c)+'</div></div>';
+    +'<div class="k-st">'+((custoQuitado(c)&&!custoPagoMes(c)&&!c.fim)?'<span class="stsel s-pago" style="display:inline-block">Quitado ✓</span>':custoStatusSel(c))+'</div></div>';
 }
-function custosList(list){if(isV2()&&list.length&&!list.every(c=>c.fim))return custosV2(list);return '<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
+function custosList(list){if(isV2()&&list.length&&!list.every(c=>c.fim||(custoQuitado(c)&&!custoPagoMes(c))))return custosV2(list);return '<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
 function renderCustos(){
   if(sb&&!custoLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando custos…</div>';return;}
   const q=sk(document.getElementById('q').value||'');
@@ -741,10 +742,11 @@ function renderCustos(){
   const chips='<div class="chips">'+CF.map(f=>'<div class="chip '+(cClasse===f[0]?'on':'')+'" onclick="setCClasse(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
   if(cClasse==='invisivel')return renderInvisivel(chips);
   if(cClasse==='fim'){
-    let list=CUSTOS.filter(c=>c.fim).filter(c=>!q||sk(c.fornecedor).includes(q)||sk(c.descricao).includes(q));
+    // encerradas = encerradas na mão + parcelamentos quitados (todas as parcelas pagas)
+    let list=CUSTOS.filter(c=>c.fim||custoQuitado(c)).filter(c=>!q||sk(c.fornecedor).includes(q)||sk(c.descricao).includes(q));
     list.sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
     const total=list.reduce((a,c)=>a+(+c.valor||0),0);
-    document.getElementById('content').innerHTML=chips+'<div class="count">'+list.length+' encerradas/quitadas</div>'+custosList(list);return;
+    document.getElementById('content').innerHTML=chips+'<div class="count">'+list.length+' encerradas/quitadas</div><div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nenhuma encerrada.</div>')+'</div>';return;
   }
   const months=monthOpts(48);
   const totK=kk=>CUSTOS.filter(c=>custoAtivoK(c,kk)).reduce((a,c)=>a+(+c.valor||0),0);
