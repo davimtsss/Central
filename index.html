@@ -319,7 +319,7 @@ body.v2 .tr.dh .e{color:var(--green)}body.v2 .tr.dh .s{color:var(--red);margin-l
 <script>
 const MES={'01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun','07':'Jul','08':'Ago','09':'Set','10':'Out','11':'Nov','12':'Dez'};
 let MESES=[];
-const TABS=[['overview','Visão geral'],['clientes','Cobranças'],['fluxo','Fluxo de caixa'],['custos','Custos'],['dm','Sócios'],['dre','DRE']];
+const TABS=[['overview','Visão geral'],['clientes','Cobranças'],['vendas','Vendas'],['fluxo','Fluxo de caixa'],['custos','Custos'],['dm','Sócios'],['dre','DRE']];
 const STATUSES=['Pago','Em aberto','Não pago','Urgente','Permuta','Cancelado'];
 const TIPOS=['Anúncio','Corporativo','Híbrido','Venda led','Permuta'];
 const FORMAS=['Pix','Cartão','Boleto','Dinheiro','Permuta'];
@@ -394,8 +394,8 @@ function brlk(n){return brl(n);}
 function esc(s){return (s==null?'':''+s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function isLed(c){return sk(c.tipo)==='vendaled';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
-function onSearch(){if(tab==='clientes')renderClientes();else if(tab==='fluxo')renderFluxo();else if(tab==='custos')renderCustos();}
-function newClick(){if(tab==='clientes')openForm();else if(tab==='custos')openCustoForm();else if(tab==='fluxo')openFluxoForm();else if(tab==='dm')openDMForm();}
+function onSearch(){if(tab==='clientes')renderClientes();else if(tab==='vendas')renderVendas();else if(tab==='fluxo')renderFluxo();else if(tab==='custos')renderCustos();}
+function newClick(){if(tab==='clientes')openForm();else if(tab==='vendas')openVendaForm();else if(tab==='custos')openCustoForm();else if(tab==='fluxo')openFluxoForm();else if(tab==='dm')openDMForm();}
 function dmy(d){const p=(d||'').split('/');return p.length>=3?(p[2]+(p[1]||'').padStart(2,'0')+(p[0]||'').padStart(2,'0')):'0';}
 function isoToDmy(iso){const p=(iso||'').split('-');return p.length>=3?(p[2]+'/'+p[1]+'/'+p[0]):'';}
 function dmyToIso(d){const p=(d||'').split('/');return p.length>=3?(p[2]+'-'+(p[1]||'').padStart(2,'0')+'-'+(p[0]||'').padStart(2,'0')):'';}
@@ -416,7 +416,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado','urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1103-1716';
+const BUILD='1104-1134';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -488,9 +488,9 @@ async function doLogin(){
 async function doLogout(){try{await sb.auth.signOut();}catch(e){}location.reload();}
 boot();
 function renderTabs(){document.getElementById('tabbar').innerHTML=TABS.map(t=>'<div class="tb '+(tab===t[0]?'on':'')+'" onclick="go(\''+t[0]+'\')">'+t[1]+'</div>').join('');
-  const nb=document.getElementById('newbtn');if(tab==='clientes'){nb.style.display='';nb.textContent='+ Cliente';}else if(tab==='custos'){nb.style.display='';nb.textContent='+ Custo';}else if(tab==='fluxo'){nb.style.display='';nb.textContent='+ Lançamento';}else if(tab==='dm'){nb.style.display='';nb.textContent='+ Lançar';}else nb.style.display='none';}
+  const nb=document.getElementById('newbtn');if(tab==='clientes'){nb.style.display='';nb.textContent='+ Cliente';}else if(tab==='vendas'){nb.style.display='';nb.textContent='+ Venda';}else if(tab==='custos'){nb.style.display='';nb.textContent='+ Custo';}else if(tab==='fluxo'){nb.style.display='';nb.textContent='+ Lançamento';}else if(tab==='dm'){nb.style.display='';nb.textContent='+ Lançar';}else nb.style.display='none';}
 function go(t){tab=t;document.getElementById('q').value='';renderActive();}
-function renderActive(){renderTabs();({overview:renderOverview,clientes:renderClientes,fluxo:renderFluxo,custos:renderCustos,dm:renderDM,dre:renderDRE}[tab]||renderOverview)();}
+function renderActive(){renderTabs();({overview:renderOverview,clientes:renderClientes,vendas:renderVendas,fluxo:renderFluxo,custos:renderCustos,dm:renderDM,dre:renderDRE}[tab]||renderOverview)();}
 
 function fluxoFilt(){return mesF==='todos'?FLUXO:FLUXO.filter(t=>t.mes===mesF);}
 function mesChips(cb){return '<div class="chips"><div class="chip '+(mesF==='todos'?'on':'')+'" onclick="'+cb+'(\'todos\')">Todos</div>'+MESES.map(m=>'<div class="chip '+(mesF===m?'on':'')+'" onclick="'+cb+'(\''+m+'\')">'+(MES[m]||m)+'</div>').join('')+'</div>';}
@@ -618,8 +618,58 @@ function renderAsaasPanel(){
     (list.length?'<div class="sharebar"><button class="cancel" onclick="openShare()">📤 Compartilhar lista</button></div>':'')+'<div class="count">'+list.length+' clientes em atraso · quem mais deve primeiro</div><div class="ctbl"><div class="crow h"><span>Cliente OnPro</span><span>Parcelas · total</span></div>'+(list.length?list.map((x,i)=>'<div class="crow"><div class="cl-main" onclick="openMsgAsaas('+i+')"><div class="cl-nm">'+esc(x.nome)+'</div><div class="cl-sub">💬 toque pra ver a mensagem · mais antiga: '+esc((x.desde||'').split('-').reverse().join('/'))+'</div></div><div style="display:flex;align-items:center;gap:10px"><span class="pill2" style="color:var(--red);font-weight:700">'+x.n+(x.n>1?' parcelas':' parcela')+'</span><b style="color:var(--red)">'+brl(x.total)+'</b></div></div>').join(''):'<div class="empty">Nenhum atraso ✓</div>')+'</div>';}
   document.getElementById('content').innerHTML=chips+body;
 }
+/* ===== VENDAS ===== registro fica na tabela tarefas (id venda_*, texto = JSON): não precisa de tabela nova no Supabase */
+const VTIPOS={'LED':'Venda led','Corporativo':'Corporativo','Anúncio':'Anúncio'};
+let VENDAS=[],vPer=null,vTipo='Anúncio';
+function vTotal(v){return (+v.valor||0)*(+v.meses||0);}
+function vData(v){return (v.data||'').split('-').reverse().join('/');}
+function vCli(v){return v.cliId?CLIENTES.find(c=>c.id===v.cliId):null;}
+function vTempo(v){return v.meses+(v.tipo==='LED'?(+v.meses>1?' parcelas':' parcela'):(+v.meses>1?' meses':' mês'));}
+function renderVendas(){
+  if(sb&&!tarLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando…</div>';return;}
+  const per=vPer||ymNow(),mset=new Set(VENDAS.map(v=>(v.data||'').slice(0,7)).filter(Boolean));mset.add(ymNow());mset.add(per);
+  const chips='<div class="chips">'+[...mset].sort().reverse().map(m=>'<div class="chip '+(per===m?'on':'')+'" onclick="vPer=\''+m+'\';renderVendas()">'+ymLabel(m)+'</div>').join('')+'</div>';
+  const doMes=VENDAS.filter(v=>(v.data||'').startsWith(per)),q=sk(document.getElementById('q').value||'');
+  const list=doMes.filter(v=>!q||sk(v.empresa).includes(q)||sk(v.tipo).includes(q)).sort((a,b)=>(b.data||'').localeCompare(a.data||'')||b.id.localeCompare(a.id));
+  const soma=a=>a.reduce((n,v)=>n+vTotal(v),0),qt=n=>n+(n===1?' venda':' vendas');
+  const kc=(l,a,c)=>'<div class="kc '+(c||'')+'"><div class="l">'+l+'</div><div class="n">'+brl(soma(a))+'</div><div class="s">'+qt(a.length)+'</div></div>';
+  const kpis='<div class="kpis">'+kc('Vendido em '+ymLabel(per),doMes,'b')+Object.keys(VTIPOS).map(t=>kc(t,doMes.filter(v=>v.tipo===t))).join('')+'</div>';
+  const rows=list.map(v=>'<div class="krow" style="cursor:pointer" onclick="openVenda(\''+v.id+'\')"><div class="k-nm"><b>'+esc(v.empresa)+'</b><small style="display:block;color:var(--muted);font-size:12px">'+esc(v.tipo)+(v.forma?' · '+esc(v.forma):'')+'</small></div><div class="k-venc">'+vData(v)+'</div><div class="k-parc">'+(+v.meses||0)+'x</div><div class="k-val">'+brl(v.valor)+'</div><div class="k-val">'+brl(vTotal(v))+'</div></div>').join('');
+  document.getElementById('content').innerHTML=chips+kpis+(rows?'<div class="panel" style="padding:0;overflow:hidden"><div class="krow h"><span>Cliente</span><span>Data</span><span>Tempo</span><span style="text-align:right">Por mês</span><span style="text-align:right">Total</span></div>'+rows+'</div>':'<div class="empty"><h3>Nenhuma venda em '+ymLabel(per)+'</h3>Toque em + Venda pra lançar.</div>');
+}
+function setVTipo(t){vTipo=t;document.querySelectorAll('#v-tipos .chip').forEach(e=>e.classList.toggle('on',e.dataset.t===t));const L=t==='LED';document.getElementById('v-lval').textContent=L?'Valor da parcela (R$)':'Valor mensal (R$)';document.getElementById('v-lmes').textContent=L?'Parcelas':'Tempo de contrato (meses)';vendaTotal();}
+function vendaTotal(){const t=parseMoney(document.getElementById('v-valor').value)*(parseInt(document.getElementById('v-meses').value)||0);document.getElementById('v-total').textContent=t>0?'Total da venda: '+brl(t):'';}
+function vendaNome(){const nome=sk(document.getElementById('v-empresa').value),c=nome?CLIENTES.find(x=>sk(x.empresa)===nome&&sk(x.status||'')!=='cancelado'):null,nt=document.getElementById('v-nota'),ck=document.getElementById('v-cob');nt.textContent=c?'Esse cliente já tem cobrança. Marque só se for uma cobrança a mais.':'';ck.checked=!c;if(c){[['wpp',c.wpp],['cidade',c.cidade],['venc',c.venc]].forEach(([k,x])=>{const el=document.getElementById('v-'+k);if(el&&!el.value&&x)el.value=x;});}}
+function openVendaForm(){vTipo='Anúncio';const op=[];for(let k=0;k<=12;k++)op.push(ymAdd(ymNow(),k));
+  document.getElementById('modal').innerHTML='<h3>Nova venda</h3><div class="flg">Cliente</div><input class="fi" id="v-empresa" list="v-clis" placeholder="Ex: Barbearia do João" oninput="vendaNome()"><datalist id="v-clis">'+CLIENTES.map(c=>'<option value="'+esc(c.empresa)+'">').join('')+'</datalist>'
+  +'<div class="flg">O que foi vendido</div><div class="chips" id="v-tipos" style="margin-bottom:0">'+Object.keys(VTIPOS).map(t=>'<div class="chip '+(t===vTipo?'on':'')+'" data-t="'+t+'" onclick="setVTipo(\''+t+'\')">'+t+'</div>').join('')+'</div>'
+  +'<div class="ff"><div><div class="flg" id="v-lval">Valor mensal (R$)</div><input class="fi" id="v-valor" type="text" inputmode="decimal" placeholder="0,00" oninput="moneyMask(this);vendaTotal()"></div><div><div class="flg" id="v-lmes">Tempo de contrato (meses)</div><input class="fi" id="v-meses" type="number" min="1" value="12" oninput="vendaTotal()"></div></div><div id="v-total" style="font-size:12.5px;font-weight:600;color:var(--accent);margin-top:6px"></div>'
+  +'<div class="ff"><div><div class="flg">Data da venda</div><input class="fi" id="v-data" type="date" value="'+hojeISO()+'"></div><div><div class="flg">Forma de pagamento</div><select class="fi" id="v-forma">'+FORMAS.map(x=>'<option '+(x==='Boleto'?'selected':'')+'>'+x+'</option>').join('')+'</select></div></div>'
+  +'<div class="ff"><div><div class="flg">Dia de vencimento</div><input class="fi" id="v-venc" type="number" min="1" max="31" oninput="(function(d,e){if(e&&!e.dataset.mexeu)e.value=(d&&new Date().getDate()>d)?ymAdd(ymNow(),1):ymNow();})(parseInt(this.value)||0,document.getElementById(\'v-prox\'))"></div><div><div class="flg">Primeira cobrança</div><select class="fi" id="v-prox" onchange="this.dataset.mexeu=1">'+op.map(m=>'<option value="'+m+'">'+ymLabel(m)+(m===ymNow()?' (este mês)':'')+'</option>').join('')+'</select></div></div>'
+  +'<div class="ff"><div><div class="flg">WhatsApp</div><input class="fi" id="v-wpp" placeholder="48999999999"></div><div><div class="flg">Cidade</div><input class="fi" id="v-cidade"></div></div>'
+  +'<div class="flg">Observação</div><input class="fi" id="v-obs" placeholder="Opcional">'
+  +'<label style="display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13.5px;font-weight:600;cursor:pointer"><input type="checkbox" id="v-cob" checked>Criar a cobrança automática</label><div id="v-nota" style="font-size:12px;color:var(--red);margin-top:4px"></div>'
+  +'<div class="mbtns"><button class="cancel" onclick="closeOv()">Cancelar</button><button class="save" onclick="saveVenda()">Lançar venda</button></div>';
+  document.getElementById('ov').classList.add('open');}
+async function saveVenda(){return guarded(_saveVenda);}
+async function _saveVenda(){const g=n=>(document.getElementById('v-'+n).value||'').trim();const empresa=g('empresa'),valor=parseMoney(g('valor')),meses=parseInt(g('meses'))||0,venc=g('venc'),cob=document.getElementById('v-cob').checked;
+  if(!empresa){toast('Põe o nome do cliente');return;}if(!(valor>0)){toast('Põe o valor');return;}if(meses<1){toast(vTipo==='LED'?'Põe as parcelas':'Põe o tempo de contrato');return;}if(cob&&!(parseInt(venc)>=1&&parseInt(venc)<=31)){toast('Põe o dia de vencimento');return;}
+  const ts=Date.now(),cliId=cob?'c'+ts:null,forma=g('forma'),prox=g('prox'),wpp=g('wpp'),cidade=g('cidade');
+  const v={empresa,tipo:vTipo,data:g('data')||hojeISO(),valor,meses,forma,venc,prox,wpp,cidade,obs:g('obs'),cliId};
+  try{
+    if(cob)await restWrite('POST','clientes',{id:cliId,empresa,status:'Em aberto',tipo:VTIPOS[vTipo],valor,venc,pg:0,tt:meses,cidade,seg:'',wpp,forma,contrato:vTipo==='LED'?'':vTempo(v),mespg:prox});
+    try{await restWrite('POST','tarefas',{id:'venda_'+ts,texto:JSON.stringify(v),feito:false,criado:new Date().toISOString()});}
+    catch(e){if(cob){try{await restWrite('DELETE','clientes',null,'id=eq.'+encodeURIComponent(cliId));}catch(_){}}throw e;}
+    vPer=v.data.slice(0,7);await Promise.all([loadClientes(),loadTarefas()]);toast(cob?'Venda lançada · cobrança criada ✓':'Venda lançada ✓');closeOv();renderActive();
+  }catch(e){writeErr(e);}}
+function openVenda(id){const v=VENDAS.find(x=>x.id===id);if(!v)return;const c=vCli(v),di=(k,x)=>'<div class="di"><div class="k">'+k+'</div><div class="v">'+x+'</div></div>';
+  document.getElementById('modal').innerHTML='<h3>'+esc(v.empresa)+'</h3><div class="mstatus" style="color:var(--accent)">● Venda · '+esc(v.tipo)+'</div><div class="dgrid">'+di('Data da venda',vData(v))+di(v.tipo==='LED'?'Parcelas':'Contrato',vTempo(v))+di(v.tipo==='LED'?'Valor da parcela':'Valor mensal',brl(v.valor))+di('Total',brl(vTotal(v)))+di('Forma',esc(v.forma||'—'))+di('Cobrança',c?(+c.tt>0?(+c.pg||0)+'/'+c.tt+' pagas':'Criada'):(v.cliId?'Apagada':'Não criada'))+(v.obs?di('Observação',esc(v.obs)):'')+'</div><div class="mbtns"><button class="cancel" onclick="closeOv()">Fechar</button>'+(c?'<button class="cancel" onclick="openDetail(\''+c.id+'\')">Ver cobrança</button>':'')+'<button class="del-confirm" onclick="askDelVenda(\''+v.id+'\')">Excluir</button></div>';
+  document.getElementById('ov').classList.add('open');}
+function vCobLivre(c){return c&&!(+c.pg>0)&&sk(c.status||'')!=='pago';}
+function askDelVenda(id){const v=VENDAS.find(x=>x.id===id);if(!v)return;const c=vCli(v);document.getElementById('modal').innerHTML='<h3>Excluir venda?</h3><p style="color:var(--muted)">Apagar a venda de <b>'+esc(v.empresa)+'</b>?'+(vCobLivre(c)?' A cobrança dela também será apagada.':(c?' A cobrança continua, porque já tem pagamento.':''))+'</p><div class="mbtns"><button class="cancel" onclick="closeOv()">Cancelar</button><button class="del-confirm" onclick="delVenda(\''+v.id+'\')">Excluir</button></div>';}
+async function delVenda(id){return guarded(async()=>{const v=VENDAS.find(x=>x.id===id);if(!v)return;const c=vCli(v);try{if(vCobLivre(c))await restWrite('DELETE','clientes',null,'id=eq.'+encodeURIComponent(c.id));await restWrite('DELETE','tarefas',null,'id=eq.'+encodeURIComponent(id));await Promise.all([loadClientes(),loadTarefas()]);toast('Venda excluída');closeOv();renderActive();}catch(e){writeErr(e);}});}
 /* ===== TAREFAS (dia a dia) ===== */
-async function loadTarefas(){if(!sb)return;try{const data=await restRead('tarefas');TAREFAS=(data||[]);}catch(e){console.warn('tarefas',e);}tarLoaded=true;if(tab==='overview')renderActive();}
+async function loadTarefas(){if(!sb)return;try{const data=await restRead('tarefas');const all=data||[],isV=t=>/^venda_/.test(t.id||'');TAREFAS=all.filter(t=>!isV(t));VENDAS=all.filter(isV).map(t=>{try{return Object.assign(JSON.parse(t.texto),{id:t.id});}catch(e){return null;}}).filter(Boolean);}catch(e){console.warn('tarefas',e);}tarLoaded=true;if(tab==='overview'||tab==='vendas')renderActive();}
 async function addTarefa(){const el=document.getElementById('tar-in');const t=(el.value||'').trim();if(!t)return;const row={id:'t'+Date.now(),texto:t,feito:false,criado:new Date().toISOString()};try{await restWrite('POST','tarefas',row);el.value='';await loadTarefas();}catch(e){writeErr(e);}}
 async function toggleTarefa(id){const t=TAREFAS.find(x=>x.id===id);if(!t)return;try{await restWrite('PATCH','tarefas',{feito:!t.feito,feito_em:(!t.feito?new Date().toISOString():null)},'id=eq.'+encodeURIComponent(id));await loadTarefas();}catch(e){writeErr(e);}}
 async function delTarefa(id){try{await restWrite('DELETE','tarefas',null,'id=eq.'+encodeURIComponent(id));await loadTarefas();}catch(e){writeErr(e);}}
@@ -1057,7 +1107,7 @@ async function autoPermuta(){if(permRodou||!CANW||!cloaded||!floaded)return;perm
     const row={id:'perm_'+c.id+'_'+ym,data:dia1,mes:mm,tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:c.empresa+' · permuta '+(tt>0?npg+'/'+tt:ymLabel(ym)),valor:+c.valor||0,forma:'Permuta',conta:'Permuta',classe:'Variável',pg:0,tt:0,fim:false};
     try{await upsertSafe('fluxo',row);n++;if(tt>0)await DB.collection('clientes').doc(c.id).update({pg:npg});}catch(e){diag('permuta auto falhou: '+(e&&e.message));}}
   if(n){await loadFluxo();await loadClientes();toast(n+' permuta'+(n>1?'s':'')+' de '+ymLabel(ym)+' lançada'+(n>1?'s':'')+' no fluxo ✓');}}
-function cliCat(c){const t=sk(c.tipo||'');return t==='venda led'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
+function cliCat(c){const t=sk(c.tipo||'');return t==='vendaled'?'Venda LED':t==='corporativo'?'Corporativo':'Anúncio';}
 function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());const k=sk(c.empresa||'');if(!k)return true;return FLUXO.find(t=>t.tipo==='Entrada'&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&sk(t.desc||'').includes(k));}
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
 function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
