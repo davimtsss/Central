@@ -421,7 +421,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1104-1743';
+const BUILD='1104-1830';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -821,6 +821,20 @@ function custoRow(c){
     +'<div class="k-st">'+((custoQuitado(c)&&!custoPagoMes(c)&&!c.fim)?'<span class="stsel s-pago" style="display:inline-block">Quitado ✓</span>':custoStatusSel(c))+'</div></div>';
 }
 function custosList(list){if(isV2()&&list.length&&!list.every(c=>c.fim||(custoQuitado(c)&&!custoPagoMes(c))))return custosV2(list);return '<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
+/* Custos por empresa: o que é só dela e a parte dela no que é dividido */
+let cEmp='ADmídia';
+function setCEmp(e){cEmp=e;renderCustos();}
+function cPartes(c){const nm=e=>({admidia:'ADmídia',onpro:'OnPro',adled:'ADled'}[sk(e)]||e||'—');if(isCombo(c)){const p=(c.ppri!=null?+c.ppri:50)/100;return [[nm(c.emp),p],[nm(c.emp2),1-p]];}if(['ao','aeo','ambas','onproeadmidia','admidiaeonpro'].includes(sk(c.emp)))return [['OnPro',.5],['ADmídia',.5]];return [[nm(c.emp),1]];}
+function renderCustoEmp(chips){const per=cPeriodo||ymNow(),k=Math.max(0,ymDiff(ymNow(),per)),base=CUSTOS.filter(c=>custoAtivoK(c,k));
+  const ord=['ADmídia','OnPro','ADled'],emps=[...new Set(base.flatMap(c=>cPartes(c).map(p=>p[0])))].sort((a,b)=>((ord.indexOf(a)+1)||9)-((ord.indexOf(b)+1)||9));if(!emps.includes(cEmp)&&emps.length)cEmp=emps[0];
+  const its=base.map(c=>{const pt=cPartes(c),own=pt.find(p=>p[0]===cEmp);return own&&own[1]>0?{c,f:own[1],v:(+c.valor||0)*own[1],outras:pt.filter(p=>p[0]!==cEmp).map(p=>p[0])}:null;}).filter(Boolean);
+  const gr=x=>x.c.grupo==='Salário'||x.c.grupo==='Investimento'?x.c.grupo:'Fixo',soma=a=>a.reduce((n,x)=>n+x.v,0),tot=g=>soma(its.filter(x=>gr(x)===g)),G=[['Fixo','Custo fixo'],['Salário','Salário'],['Investimento','Investimento']];
+  const fx=tot('Fixo'),sal=tot('Salário'),inv=tot('Investimento');
+  const kc=(l,v,cor,s)=>'<div class="kc"><div class="l">'+l+'</div><div class="n" style="font-size:20px'+(cor?';color:'+cor:'')+'">'+brl(v)+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>';
+  const kpis='<div class="kpis">'+kc('Custo fixo',fx,GCOL.fixo)+kc('Salário',sal,GCOL[sk('Salário')])+kc('Fixo + salário',fx+sal,'var(--accent)','custo pra manter a empresa')+kc('Investimento',inv,GCOL.investimento,'com investimento: '+brl(fx+sal+inv))+'</div>';
+  const row=x=>{const c=x.c;return '<div class="krow" style="cursor:pointer" onclick="openCustoForm(\''+c.id+'\')"><div class="k-nm"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+[c.descricao,x.outras.length?Math.round(x.f*100)+'% · com '+x.outras.join(', '):''].filter(Boolean).map(esc).join(' · ')+'</div></div><div class="k-venc">'+(c.venc?'Venc '+esc(c.venc):'—')+'</div><div class="k-parc">'+(+c.tt>0?(+c.pg||0)+'/'+(+c.tt):'—')+'</div><div class="k-val">'+brl(c.valor)+'</div><div class="k-val">'+brl(x.v)+'</div></div>';};
+  const sec=(tit,a)=>a.length?'<div class="count" style="margin-top:18px">'+tit+' · '+brl(soma(a))+'</div><div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span style="text-align:right">Valor</span><span style="text-align:right">Parte '+esc(cEmp)+'</span></div>'+G.map(([g,nm])=>{const it=a.filter(x=>gr(x)===g).sort((p,q)=>q.v-p.v);return it.length?grpHead(GCOL[sk(g)]||'var(--ink)',nm,it.length,soma(it))+it.map(row).join(''):'';}).join('')+'</div>':'';
+  document.getElementById('content').innerHTML=chips+'<div class="chips">'+emps.map(e=>'<div class="chip '+(e===cEmp?'on':'')+'" onclick="setCEmp(\''+esc(e)+'\')">'+esc(e)+'</div>').join('')+'</div><div class="count">'+esc(cEmp)+' · '+ymLabel(per)+'</div>'+kpis+(its.length?sec('Só da '+esc(cEmp),its.filter(x=>!x.outras.length))+sec('Divididos · parte da '+esc(cEmp),its.filter(x=>x.outras.length)):'<div class="empty">Nenhum custo nesse mês.</div>');}
 function renderCustosBusca(q){const off=c=>(c.fim||custoQuitado(c))?1:0;
   const cs=CUSTOS.filter(c=>qHit(q,c.fornecedor,c.descricao,c.emp,c.grupo,c.obs)).sort((a,b)=>off(a)-off(b)||sk(a.fornecedor||a.descricao).localeCompare(sk(b.fornecedor||b.descricao)));
   const fx=FLUXO.filter(t=>qHit(q,t.desc,t.cat,t.emp,t.conta)).sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
@@ -832,9 +846,10 @@ function renderCustos(){
   if(sb&&!custoLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando custos…</div>';return;}
   if(qVal())return renderCustosBusca(qVal());
   const per=cPeriodo||ymNow();const k=Math.max(0,ymDiff(ymNow(),per));
-  const CF=[['todos','Todos'],['Fixo','Fixo'],['Investimento','Investimento'],['Salário','Salário'],['fim','Encerradas'],['invisivel','Custo invisível']];
+  const CF=[['todos','Todos'],['Fixo','Fixo'],['Investimento','Investimento'],['Salário','Salário'],['empresa','Por empresa'],['fim','Encerradas'],['invisivel','Custo invisível']];
   const chips='<div class="chips">'+CF.map(f=>'<div class="chip '+(cClasse===f[0]?'on':'')+'" onclick="setCClasse(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
   if(cClasse==='invisivel')return renderInvisivel(chips);
+  if(cClasse==='empresa')return renderCustoEmp(chips);
   if(cClasse==='fim'){
     // encerradas = encerradas na mão + parcelamentos quitados (todas as parcelas pagas)
     let list=CUSTOS.filter(c=>c.fim||custoQuitado(c));
