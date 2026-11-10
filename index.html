@@ -297,6 +297,7 @@ body.v2 .tr.dh .e{color:var(--green)}body.v2 .tr.dh .s{color:var(--red);margin-l
     <div class="sp"></div>
     <div class="search"><input id="q" type="text" placeholder="Buscar..." oninput="onSearch()"></div>
     <button class="btn-new" id="newbtn" onclick="newClick()" style="display:none">+ Novo</button>
+    <button class="btn-logout" id="expbtn" onclick="openExport()" style="display:none">Exportar</button>
     <button class="btn-logout" id="logoutbtn" onclick="doLogout()" style="display:none">Sair</button>
   </div>
   <div class="tabbar" id="tabbar"></div>
@@ -421,7 +422,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s))return s;if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1104-1830';
+const BUILD='1110-1816';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -468,7 +469,7 @@ async function boot(){try{applyVis();}catch(e){}
 function onAuthed(){
   if(authedOnce)return;authedOnce=true;
   hideLogin();
-  const lb=document.getElementById('logoutbtn');if(lb)lb.style.display='';
+  const lb=document.getElementById('logoutbtn');if(lb)lb.style.display='';const eb=document.getElementById('expbtn');if(eb)eb.style.display='';
   DB=makeDB();USER={};CANW=true;
   DB.collection('clientes').onSnapshot(s=>{CLIENTES=s.docs.map(d=>({id:d.id,...d.data()}));cloaded=true;if(['clientes','overview'].includes(tab))renderActive();autoPermuta();},e=>{});
   DB.doc('fluxo/data').onSnapshot(s=>{const dt=s.data();FLUXO=(dt&&dt.items)||[];floaded=true;refreshMeses();if(['overview','fluxo','custos'].includes(tab))renderActive();autoPermuta();},e=>{});
@@ -698,6 +699,19 @@ async function vendaRecebi(id){return guarded(async()=>{const v=VENDAS.find(x=>x
 function vCobLivre(c){return c&&!(+c.pg>0)&&sk(c.status||'')!=='pago';}
 function askDelVenda(id){const v=VENDAS.find(x=>x.id===id);if(!v)return;const c=vCli(v);document.getElementById('modal').innerHTML='<h3>Excluir venda?</h3><p style="color:var(--muted)">Apagar a venda de <b>'+esc(v.empresa)+'</b>?'+(vCobLivre(c)?' A cobrança dela também será apagada.':(c?' A cobrança continua, porque já tem pagamento.':''))+(v.fluxoId?(v.unico?' O pagamento lançado no fluxo também será apagado.':' A '+vEntNome(v).toLowerCase()+' lançada no fluxo também será apagada.'):'')+'</p><div class="mbtns"><button class="cancel" onclick="closeOv()">Cancelar</button><button class="del-confirm" onclick="delVenda(\''+v.id+'\')">Excluir</button></div>';}
 async function delVenda(id){return guarded(async()=>{const v=VENDAS.find(x=>x.id===id);if(!v)return;const c=vCli(v);try{if(vCobLivre(c))await restWrite('DELETE','clientes',null,'id=eq.'+encodeURIComponent(c.id));if(v.fluxoId)await restWrite('DELETE','fluxo',null,'id=eq.'+encodeURIComponent(v.fluxoId));await restWrite('DELETE','tarefas',null,'id=eq.'+encodeURIComponent(id));await Promise.all([loadClientes(),loadFluxo(),loadTarefas()]);toast('Venda excluída');closeOv();renderActive();}catch(e){writeErr(e);}});}
+/* ===== EXPORTAR: tudo da Central num arquivo, para mandar em outra conversa ===== */
+function exportDados(){const sem=o=>{const c=Object.assign({},o);delete c.data_;return c;};
+  return {exportado_em:new Date().toLocaleString('pt-BR'),versao:BUILD,
+    legenda:'Central Financeira ADmídia/OnPro. clientes = cobranças (status_hoje e meses_atraso já calculados pela data). custos = contas a pagar (status_hoje, meses_atraso, quitado). fluxo = entradas e saídas (valor em R$, emp = empresa, emp2/ppri = rateio entre empresas). vendas = vendas lançadas na aba Vendas. socios = retiradas Davi/Matheus. asaas = resumo das cobranças da OnPro.',
+    clientes:CLIENTES.map(c=>Object.assign({},c,{status_hoje:effSt(c),meses_atraso:cliLate(c)})),
+    custos:CUSTOS.map(c=>Object.assign({},c,{status_hoje:statusCusto(c),meses_atraso:custoLate(c),quitado:custoQuitado(c)})),
+    fluxo:FLUXO,vendas:VENDAS,socios:DMD,
+    asaas:ASAAS?{recebido_mes:ASAAS.recebido_mes,a_receber:ASAAS.a_receber,atrasado:ASAAS.atrasado,n_atrasado:ASAAS.n_atrasado,atrasados:ASAAS.atrasados}:null};}
+function openExport(){const d=exportDados();
+  document.getElementById('modal').innerHTML='<h3>Exportar dados</h3><p style="color:var(--muted);font-size:14px;line-height:1.5">Gera um arquivo com tudo da Central: '+d.clientes.length+' clientes, '+d.custos.length+' custos, '+d.fluxo.length+' lançamentos do fluxo, '+d.vendas.length+' vendas. Anexe o arquivo na outra conversa. Tem dados de clientes, mande só para quem pode ver.</p><div class="mbtns"><button class="cancel" onclick="copiarExport()">Copiar tudo</button><button class="save" onclick="baixarExport()">Baixar arquivo</button></div>';
+  document.getElementById('ov').classList.add('open');}
+function baixarExport(){const t=JSON.stringify(exportDados(),null,1);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'application/json'}));a.download='central_dados_'+hojeISO()+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);toast('Arquivo baixado ✓');}
+async function copiarExport(){const t=JSON.stringify(exportDados());try{await navigator.clipboard.writeText(t);toast('Copiado ✓ · cole na outra conversa');}catch(e){toast('Não deu para copiar · use Baixar arquivo');}}
 /* ===== TAREFAS (dia a dia) ===== */
 async function loadTarefas(){if(!sb)return;try{const data=await restRead('tarefas');const all=data||[],isV=t=>/^venda_/.test(t.id||'');TAREFAS=all.filter(t=>!isV(t));VENDAS=all.filter(isV).map(t=>{try{return Object.assign(JSON.parse(t.texto),{id:t.id});}catch(e){return null;}}).filter(Boolean);}catch(e){console.warn('tarefas',e);}tarLoaded=true;if(tab==='overview'||tab==='vendas')renderActive();}
 async function addTarefa(){const el=document.getElementById('tar-in');const t=(el.value||'').trim();if(!t)return;const row={id:'t'+Date.now(),texto:t,feito:false,criado:new Date().toISOString()};try{await restWrite('POST','tarefas',row);el.value='';await loadTarefas();}catch(e){writeErr(e);}}
