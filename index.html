@@ -417,6 +417,10 @@ function cliLate(c){const s=sk(c.status);if(s==='permuta'||s==='cancelado'||cliQ
 function cliDesde(c){if(sk(c.status)==='pago')return ymAdd(cliMesPg(c),1);return c.mespg||ymNow();}
 function cliUltVenc(c){const d=parseInt(c.venc)||0;return (d&&new Date().getDate()>d)?ymNow():ymAdd(ymNow(),-1);}
 function cliMeses(c){const n=cliLate(c);if(n<1)return [];const a=cliDesde(c),o=[];for(let i=0;i<n;i++)o.push(ymAdd(a,i));return o;}
+function diaMes(d,ym){const p=ym.split('-'),ult=new Date(+p[0],+p[1],0).getDate();return String(Math.min(d,ult)).padStart(2,'0')+'/'+p[1];}
+function atrasoInfo(c,d){const ms=cliMeses(c);if(!ms.length||!d)return null;const p=ms[0].split('-'),dt=new Date(+p[0],+p[1]-1,Math.min(d,new Date(+p[0],+p[1],0).getDate())),hj=new Date();hj.setHours(0,0,0,0);return {ms,dias:Math.round((hj-dt)/864e5),k:ymDiff(ms[0],ymNow()),data:diaMes(d,ms[0])};}
+function venceuLbl(c,d){const a=atrasoInfo(c,d);if(!a)return 'venceu dia '+d;return 'venceu '+a.data+'<small style="display:block;font-size:11px;font-weight:500;opacity:.85">há '+a.dias+(a.dias===1?' dia':' dias')+'</small>';}
+function atrasoSub(c,d){const a=atrasoInfo(c,d);if(!a)return '';const v=+c.valor||0;return '<span class="rd">'+(a.ms.length>1?a.ms.length+' vencidas ('+mesesTxt(a.ms)+') · '+brl(v*a.ms.length)+' em aberto':'parcela de '+mesesTxt(a.ms)+(a.k===1?' (mês passado)':a.k===0?' (este mês)':''))+' · '+a.dias+' dias de atraso</span>';}
 function mesesTxt(ms){const m=ms.map(x=>MESABR[+x.split('-')[1]-1]);if(!m.length)return '';const ano=ms[ms.length-1].split('-')[0];return (m.length<=3?m.join(' + '):m[0]+' a '+m[m.length-1])+'/'+ano;}
 function ymAdd(ym,n){const p=ym.split('-');const d=new Date(+p[0],+p[1]-1+n,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 const MESABR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];function ymLabel(ym){const p=ym.split('-');return MESABR[+p[1]-1]+'/'+p[0];}
@@ -425,7 +429,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1116-1358';
+const BUILD='1116-1403';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -1108,7 +1112,7 @@ function crow(c){
   if(late>=2||(late===1&&!d))m.push('<span class="rd" style="font-weight:700">⚠ '+late+(late>1?' meses':' mês')+' em atraso'+(late>=2?' (desde '+ymLabel(cliDesde(c))+')':'')+'</span>');
   if(c.valor)m.push('<span><b>'+brl(c.valor)+'</b>/mês</span>');
   if(tt>0)m.push('<span>'+(pg>=tt?('♻ '+pg+' meses'):(pg+'/'+tt+' parcelas'))+'</span>');
-  if(s==='pago')m.push('<span style="color:var(--green)">pago ✓</span>');else if(d&&s!=='permuta'&&c.mespg&&c.mespg>ymNow())m.push('<span>próxima cobrança '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</span>');else if(d&&s!=='permuta')m.push('<span class="'+(atr?'rd':'')+'"'+(late===1?' style="font-weight:700"':'')+'>'+(atr?(late===1?'⚠ venceu dia '+d+' · atrasado':'venceu dia '+d):'vence dia '+d)+'</span>');
+  if(s==='pago')m.push('<span style="color:var(--green)">pago ✓</span>');else if(d&&s!=='permuta'&&c.mespg&&c.mespg>ymNow())m.push('<span>próxima cobrança '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</span>');else if(d&&s!=='permuta')m.push('<span class="'+(atr?'rd':'')+'"'+(late===1?' style="font-weight:700"':'')+'>'+(atr?(late>=1&&atrasoInfo(c,d)?'⚠ venceu '+atrasoInfo(c,d).data+' · '+atrasoSub(c,d).replace(/<[^>]+>/g,''):'venceu dia '+d):'vence dia '+d)+'</span>');
   if(c.forma)m.push('<span>'+esc(c.forma)+'</span>');
   if(c.contrato)m.push('<span>contrato '+esc(c.contrato)+'</span>');
   const opts=STATUSES.map(o=>'<option '+(sk(o)===s?'selected':'')+'>'+o+'</option>').join('');
@@ -1122,8 +1126,8 @@ function applyVis(){document.body.classList.toggle('v2',isV2());let b=document.g
 function toggleVis(){try{localStorage.setItem('cf_vis',isV2()?'classico':'novo');}catch(e){}applyVis();renderActive();}
 function grpHead(cor,nome,n,total){return '<div class="grp"><i style="background:'+cor+'"></i>'+nome+' <span class="gc">· '+n+'</span><span class="gt">'+brl(total)+'</span></div>';}
 function crow2(c){const s=effSt(c),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,late=cliLate(c),atr=(s==='naopago'||s==='urgente');
-  const sub=[c.cidade,c.seg].filter(Boolean).map(esc).join(' · ')+(late>=2?' · <span class="rd">'+late+' meses em atraso (desde '+ymLabel(cliDesde(c))+')</span>':'');
-  let vc='—',vcl='';if(d){if(s==='pago')vc='dia '+d;else if(c.mespg&&c.mespg>ymNow()&&s!=='permuta'){vc='próx. '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1];}else if(atr&&!isPermCli(c)){vc='venceu dia '+d;vcl=' late';}else vc='vence dia '+d;}
+  const sub=[c.cidade,c.seg].filter(Boolean).map(esc).join(' · ')+(late>=1&&d&&!isPermCli(c)?(c.cidade||c.seg?' · ':'')+atrasoSub(c,d):(late>=2?' · <span class="rd">'+late+' meses em atraso (desde '+ymLabel(cliDesde(c))+')</span>':''));
+  let vc='—',vcl='';if(d){if(s==='pago')vc='dia '+d;else if(c.mespg&&c.mespg>ymNow()&&s!=='permuta'){vc='próx. '+String(d).padStart(2,'0')+'/'+c.mespg.split('-')[1];}else if(atr&&!isPermCli(c)){vc=venceuLbl(c,d);vcl=' late';}else vc='vence dia '+d;}
   const opts=STATUSES.map(o=>'<option '+(sk(o)===s?'selected':'')+'>'+o+'</option>').join('');
   const st=CANW?'<select class="stsel s-'+s+'" onchange="setStSel(\''+c.id+'\',this.value)">'+opts+'</select>':'<span>'+(LABEL[s]||esc(c.status))+'</span>';
   return '<div class="c2"><div class="nm" onclick="openDetail(\''+c.id+'\')"><b>'+esc(c.empresa)+'</b><small>'+(sub||'&nbsp;')+'</small></div><div class="vc'+vcl+'">'+vc+'</div><div class="pc">'+(tt>0?pg+'/'+tt:'—')+'</div><div class="vl">'+(c.valor?brl(c.valor)+'<small>/mês</small>':'—')+'</div>'+st+'</div>';}
