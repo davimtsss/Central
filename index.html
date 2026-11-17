@@ -522,7 +522,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1116-2334';
+const BUILD='1117-0817';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -598,7 +598,7 @@ const PGT={overview:['Visão geral','fechamento do mês'],clientes:['Cobranças'
 function sbBadges(){let cli=0,cus=0;try{if(cloaded)cli=CLIENTES.filter(c=>!isLed(c)&&!isPermCli(c)&&['naopago','urgente'].includes(effSt(c))).length;}catch(e){}try{if(custoLoaded)cus=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&statusCusto(c)!=='Pago'&&!custoOff(c)&&custoLate(c)>=1).length;}catch(e){}let op=0;try{if(asaasLoaded&&!asaasErr)op=asaasAgg().length;}catch(e){}return {clientes:cli,custos:cus,onpro:op};}
 function renderSide(){const el=document.getElementById('sbnav');if(!el)return;const B=sbBadges(),onp=(tab==='clientes'&&cfiltro==='onpro');
   const it=(k,lbl,js,on)=>'<div class="sb-it'+(on?' on':'')+'" onclick="'+js+'">'+(SBICO[k]||'')+'<span>'+lbl+'</span>'+(B[k]?'<em>'+B[k]+'</em>':'')+'</div>';
-  el.innerHTML='<div class="sb-lab">MÓDULOS</div>'+it('overview','Visão geral',"go('overview')",tab==='overview')+it('clientes','Cobranças',"cfiltro='todos';go('clientes')",tab==='clientes'&&!onp)+it('custos','Custos',"go('custos')",tab==='custos')+it('fluxo','Fluxo de caixa',"go('fluxo')",tab==='fluxo')+it('vendas','Vendas',"go('vendas')",tab==='vendas')+it('onpro','OnPro · Asaas','goOnPro()',onp)
+  el.innerHTML='<div class="sb-lab">MÓDULOS</div>'+it('overview','Visão geral',"go('overview')",tab==='overview')+it('clientes','Cobranças',"cfiltro='todos';go('clientes')",tab==='clientes'&&!onp)+it('custos','Custos',"go('custos')",tab==='custos')+it('fluxo','Fluxo de caixa',"go('fluxo')",tab==='fluxo')+it('vendas','Vendas',"go('vendas')",tab==='vendas')
    +'<div class="sb-lab" style="margin-top:18px">RELATÓRIOS</div>'+it('dre','DRE',"go('dre')",tab==='dre')+it('dm','Sócios',"go('dm')",tab==='dm');
   const pt=document.getElementById('pgt');if(pt){const P=onp?['OnPro · Asaas','cobranças da OnPro']:(PGT[tab]||['','']);pt.innerHTML=P[0]+'<small>'+P[1]+'</small>';}
   const sv=document.getElementById('sbver');if(sv&&typeof BUILD!=='undefined')sv.textContent='versão '+BUILD;}
