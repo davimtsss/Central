@@ -322,6 +322,7 @@ body.ct3 .ct.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 .chip{background:transparent;border-color:#25272e;color:#b4b8c2;border-radius:9px}
 body.ct3 .chip.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 #vis-tg{display:none}
+body.ct3 .ov-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
 html{overflow-x:hidden}
 body.ct3 .c2:hover,body.ct3 .krow:hover,body.ct3 .tr:hover,body.ct3 .crow:hover{background:#1a1c21!important}
 body.ct3 .krow:hover .k-nm b,body.ct3 .krow .k-nm b{color:#e8eaf0}
@@ -522,7 +523,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1117-0817';
+const BUILD='1117-0818';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -689,7 +690,7 @@ function overviewNovo(o){
   const chips='<div class="ov-chips">'
     +chip(ICONS.cal,'Fluxo de caixa',lancar?(diasSem===null?'!':diasSem+'d'):'✓',lancar?(diasSem===null?'nenhum lançamento':diasSem+' dias sem lançar'):'lançamentos em dia',"go('fluxo')",lancar)
     +chip(ICONS.cam,'Check-in fotográfico',checkLoaded&&!checkErr?ckp.length:'…',checkLoaded&&!checkErr?(ckp.length?ckp.slice(0,3).map(x=>esc(x.c.nome)).join(', ')+(ckp.length>3?'…':''):'ninguém pendente'):'carregando','openCheckins()',ckp.length>0)
-    +chip(ICONS.onpro,'OnPro · Asaas',!asaasLoaded?'…':(asaasErr?'!':ag.length),!asaasLoaded?'carregando':(asaasErr?'não conectado':(ag.length?ag.length+' em atraso · '+brl(ag.reduce((a,x)=>a+x.total,0)):'nenhum atraso')),'goOnPro()',ag.length>0)
+    +(SEM_ASAAS?'':chip(ICONS.onpro,'OnPro · Asaas',!asaasLoaded?'…':(asaasErr?'!':ag.length),!asaasLoaded?'carregando':(asaasErr?'não conectado':(ag.length?ag.length+' em atraso · '+brl(ag.reduce((a,x)=>a+x.total,0)):'nenhum atraso')),'goOnPro()',ag.length>0))
     +'</div>';
   if(document.body.classList.contains('ct3'))return '<div class="ovw"><div class="ov-date">'+today.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})+'</div>'+fixAtrasoBar()+o3top({entD,perm,sai,cobT,ncob:cob.length,pagT,npag:pend.length,mesN})+lists+chips+'</div>';
   return '<div class="ovw"><div class="ov-date">'+today.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})+'</div>'+fixAtrasoBar()+hero+fatADHtml()+lists+chips+'</div>';
@@ -1227,7 +1228,7 @@ function renderDRE(){
 
 /* CLIENTES */
 function cmatch(c){const s=effSt(c),P=isPermCli(c);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return !isLed(c)&&s!=='permuta'&&!P;if(cfiltro==='atrasados')return !P&&(s==='naopago'||s==='urgente');if(cfiltro==='emaberto')return !P&&s==='emaberto';if(cfiltro==='pago')return !P&&s==='pago';if(cfiltro==='permuta')return s==='permuta'||P;if(cfiltro==='led')return isLed(c);return true;}
-const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['onpro','OnPro'],['cancelados','Cancelados']];
+const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['cancelados','Cancelados']];
 function setCF(f){cfiltro=f;renderClientes();}
 function crow(c){
   const s=effSt(c),pg=+c.pg||0,tt=+c.tt||0,d=parseInt(c.venc)||0,atr=(s==='naopago'||s==='urgente');
@@ -1363,7 +1364,7 @@ function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
 function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
-let FID_SEQ=0;let CMAIS=false;
+const SEM_ASAAS=true;let FID_SEQ=0;let CMAIS=false;
 async function lancarCliNoFluxo(c,pg,ref){if(!(+c.valor>0)||cliNoFluxo(c,pg,ref))return false;const now=new Date();
   const row={id:'f'+(Date.now()+(FID_SEQ++)),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:(sk(c.forma||'')==='permuta'||sk(c.status||'')==='permuta')?'Permuta':'Cora',classe:'Variável',pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
