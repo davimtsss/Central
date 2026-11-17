@@ -322,6 +322,20 @@ body.ct3 .ct.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 .chip{background:transparent;border-color:#25272e;color:#b4b8c2;border-radius:9px}
 body.ct3 .chip.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 #vis-tg{display:none}
+html{overflow-x:hidden}
+body.ct3 .c2:hover,body.ct3 .krow:hover,body.ct3 .tr:hover,body.ct3 .crow:hover{background:#1a1c21!important}
+body.ct3 .krow:hover .k-nm b,body.ct3 .krow .k-nm b{color:#e8eaf0}
+body.ct3 .ctbl,body.ct3 .tbl,body.ct3 .panel,body.ct3 .t3{max-width:100%;min-width:0}
+body.ct3 .krow{grid-template-columns:minmax(0,1fr) 88px 72px 112px 136px;gap:10px}
+body.ct3 .krow .k-nm b,body.ct3 .krow .k-nm small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:1250px){body.ct3 .krow{grid-template-columns:minmax(0,1fr) 78px 60px 104px 128px;gap:8px}}
+@media(max-width:1250px){body.ct3 .r3,body.ct3 .h3r{grid-template-columns:minmax(0,2fr) 150px minmax(0,1.5fr) 100px 104px 80px}body.ct3 .r3>:nth-child(5),body.ct3 .h3r>:nth-child(5){display:none}}
+body.ct3 .mstrip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));overflow:visible}
+body.ct3 .ms{min-width:0}body.ct3 .ms b{font-size:13.5px}
+body.ct3 .msmore{border-style:dashed;text-align:center}
+body.ct3 .kpis,body.ct3 .kpis.k6{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+body.ct3 .kc .n{white-space:normal}
+body.ct3 #content,body.ct3 .wrap{min-width:0;max-width:100%}
 body.ct3 .stsel{background-color:#7d8aa8!important;color:#fff!important;border-radius:5px!important;font-size:11px!important;font-weight:800!important;letter-spacing:.04em;text-transform:uppercase;padding:6px 26px 6px 10px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffffff' stroke-width='1.6'/%3E%3C/svg%3E")!important}
 body.ct3 .stsel.s-pago{background-color:#2bb3a8!important}
 body.ct3 .stsel.s-naopago,body.ct3 .stsel.s-urgente,body.ct3 .stsel.s-atrasado{background-color:#e5484d!important}
@@ -508,7 +522,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1116-2329';
+const BUILD='1116-2334';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -1001,7 +1015,7 @@ function renderCustos(){
   }
   const months=monthOpts(48);
   const totK=kk=>CUSTOS.filter(c=>custoAtivoK(c,kk)).reduce((a,c)=>a+(+c.valor||0),0);
-  const psel='<div class="ph" style="margin:0 0 8px;font-weight:700">Custo por mês <small style="color:var(--muted);font-weight:500">· toca no mês pra ver a projeção</small></div><div class="mstrip">'+months.map(m=>'<div class="ms'+(per===m.ym?' on':'')+'" onclick="setCPeriodo(\''+m.ym+'\')"><small>'+(m.k===0?'Este mês':m.lbl)+'</small><b>'+brlk(totK(m.k))+'</b></div>').join('')+'</div>'+projDiff(k);
+  const psel='<div class="ph" style="margin:0 0 8px;font-weight:700">Custo por mês <small style="color:var(--muted);font-weight:500">· toca no mês pra ver a projeção</small></div><div class="mstrip">'+months.filter((m,i)=>i<12||CMAIS||per===m.ym).map(m=>'<div class="ms'+(per===m.ym?' on':'')+'" onclick="setCPeriodo(\''+m.ym+'\')"><small>'+(m.k===0?'Este mês':m.lbl)+'</small><b>'+brlk(totK(m.k))+'</b></div>').join('')+(months.length>12?'<div class="ms msmore" onclick="CMAIS=!CMAIS;renderCustos()"><small>'+(CMAIS?'mostrar menos':'mais meses')+'</small><b>'+(CMAIS?'−':'+ '+(months.length-12))+'</b></div>':'')+'</div>'+projDiff(k);
   const base=CUSTOS.filter(c=>custoAtivoK(c,k));
   const tot=g=>base.filter(c=>c.grupo===g).reduce((a,c)=>a+(+c.valor||0),0);
   const totalMes=tot('Fixo')+tot('Investimento')+tot('Salário');
@@ -1349,7 +1363,7 @@ function cliFluxoMes(c){const now=new Date();const mes=String(now.getMonth()+1).
 async function lancarAgora(id){return guarded(async()=>{const c=CLIENTES.find(x=>x.id===id);if(!c)return;const ok=await lancarCliNoFluxo(c,+c.pg||0);await loadFluxo();toast(ok?'Entrada lançada no fluxo ✓':'Já estava no fluxo');renderActive();});}
 function cliNoFluxo(c,pg,ref){const desc=cliFluxoDesc(c,pg,ref);const now=new Date();const mes=String(now.getMonth()+1).padStart(2,'0');const ano=String(now.getFullYear());
   return FLUXO.find(t=>t.tipo==='Entrada'&&t.desc===desc&&String(t.mes).padStart(2,'0')===mes&&dmy(t.data).startsWith(ano)&&Math.abs((+t.valor||0)-(+c.valor||0))<0.01);}
-let FID_SEQ=0;
+let FID_SEQ=0;let CMAIS=false;
 async function lancarCliNoFluxo(c,pg,ref){if(!(+c.valor>0)||cliNoFluxo(c,pg,ref))return false;const now=new Date();
   const row={id:'f'+(Date.now()+(FID_SEQ++)),data:now.toLocaleDateString('pt-BR'),mes:String(now.getMonth()+1).padStart(2,'0'),tipo:'Entrada',emp:'ADmídia',emp2:'',ppri:50,cat:cliCat(c),descricao:cliFluxoDesc(c,pg,ref),valor:+c.valor||0,forma:c.forma||'Pix',conta:(sk(c.forma||'')==='permuta'||sk(c.status||'')==='permuta')?'Permuta':'Cora',classe:'Variável',pg:0,tt:0,fim:false};
   await upsertSafe('fluxo',row);return true;}
