@@ -528,7 +528,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1117-1023';
+const BUILD='1117-1028';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -1232,7 +1232,7 @@ function renderDRE(){
 }
 
 /* CLIENTES */
-function cmatch(c){const s=effSt(c),P=isPermCli(c);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return !isLed(c)&&s!=='permuta'&&!P;if(cfiltro==='atrasados')return !P&&(s==='naopago'||s==='urgente');if(cfiltro==='emaberto')return !P&&s==='emaberto';if(cfiltro==='pago')return !P&&s==='pago';if(cfiltro==='permuta')return s==='permuta'||P;if(cfiltro==='led')return isLed(c);return true;}
+function cmatch(c){const s=effSt(c),P=isPermCli(c);if(cfiltro==='cancelados')return s==='cancelado';if(s==='cancelado')return false;if(cfiltro==='todos')return (document.body.classList.contains('ct3')?!(isLed(c)&&cliQuitado(c)):!isLed(c))&&s!=='permuta'&&!P;if(cfiltro==='atrasados')return !P&&(s==='naopago'||s==='urgente');if(cfiltro==='emaberto')return !P&&s==='emaberto';if(cfiltro==='pago')return !P&&s==='pago';if(cfiltro==='permuta')return s==='permuta'||P;if(cfiltro==='led')return isLed(c);return true;}
 const CFILT=[['todos','Todos'],['atrasados','Precisa cobrar'],['emaberto','Aguardando'],['pago','Em dia'],['permuta','Permuta'],['led','ADled'],['cancelados','Cancelados']];
 function setCF(f){cfiltro=f;renderClientes();}
 function crow(c){
