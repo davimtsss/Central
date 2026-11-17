@@ -323,14 +323,18 @@ body.ct3 .ct.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 .chip{background:transparent;border-color:#25272e;color:#b4b8c2;border-radius:9px}
 body.ct3 .chip.on{background:#e8eaf0;color:#0c0d10;border-color:#e8eaf0}
 body.ct3 #vis-tg{display:none}
+.m3 span.ck{cursor:pointer;transition:transform .12s,box-shadow .12s}.m3 span.ck:hover{transform:translateY(-2px);box-shadow:0 0 0 2px #fff}
+#mpop{position:absolute;z-index:200;width:250px;background:#1b1d22;border:1px solid #2c2f37;border-radius:12px;padding:12px 14px;box-shadow:0 18px 40px -10px #000c;display:none;color:#e8eaf0}
+#mpop .mp-t{font-weight:700;font-size:13.5px}#mpop .mp-m{font-size:12px;color:#8a8f9c;margin-top:2px}#mpop .mp-v{font-size:18px;font-weight:700;margin:8px 0 10px}#mpop .mp-v small{font-size:11px;color:#8a8f9c;font-weight:500}
+#mpop .mp-b{display:flex;gap:8px}#mpop .mp-b .b3{flex:1}
 body.ct3 .ov-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
 html{overflow-x:hidden}
 body.ct3 .c2:hover,body.ct3 .krow:hover,body.ct3 .tr:hover,body.ct3 .crow:hover{background:#1a1c21!important}
 body.ct3 .krow:hover .k-nm b,body.ct3 .krow .k-nm b{color:#e8eaf0}
 body.ct3 .ctbl,body.ct3 .tbl,body.ct3 .panel,body.ct3 .t3{max-width:100%;min-width:0}
-body.ct3 .krow{grid-template-columns:minmax(0,1fr) 88px 72px 112px 136px;gap:10px}
+body.ct3 .krow{grid-template-columns:minmax(0,1fr) 176px 84px 64px 112px 136px;gap:10px}
 body.ct3 .krow .k-nm b,body.ct3 .krow .k-nm small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:1250px){body.ct3 .krow{grid-template-columns:minmax(0,1fr) 78px 60px 104px 128px;gap:8px}}
+@media(max-width:1250px){body.ct3 .krow{grid-template-columns:minmax(0,1fr) 160px 76px 56px 104px 124px;gap:8px}}
 @media(max-width:1250px){body.ct3 .r3,body.ct3 .h3r{grid-template-columns:minmax(0,2fr) 150px minmax(0,1.5fr) 100px 104px 80px}body.ct3 .r3>:nth-child(5),body.ct3 .h3r>:nth-child(5){display:none}}
 body.ct3 .mstrip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));overflow:visible}
 body.ct3 .ms{min-width:0}body.ct3 .ms b{font-size:13.5px}
@@ -524,7 +528,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1117-0928';
+const BUILD='1117-0958';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -972,13 +976,13 @@ function custoRow(c){
   const emp=isCombo(c)?'OnPro e ADmídia':(c.emp||'');
   const late=custoLate(c)>=1&&statusCusto(c)!=='Pago';
   const sub=[c.descricao,emp,c.fim?'Encerrado':''].filter(Boolean).map(esc).join(' · ')+(c.obs?' 📝':'');
-  return '<div class="krow'+(late?' late':'')+'"><div class="k-nm" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+sub+'</div></div>'
+  return '<div class="krow'+(late?' late':'')+'"><div class="k-nm" onclick="openCustoForm(\''+c.id+'\')"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+sub+'</div></div>'+(document.body.classList.contains('ct3')?custoStrip(c):'')
     +'<div class="k-venc" onclick="openCustoForm(\''+c.id+'\')">'+(c.venc?('Venc '+String(c.venc).padStart(2,'0')):'—')+(late?'<small>'+(custoLate(c)>=2?custoLate(c)+' vencidas':'atrasada')+'</small>':(custoOff(c)&&c.venc?'<small style="color:var(--muted)">'+(+c.pg?'próxima':'1ª')+' '+String(c.venc).padStart(2,'0')+'/'+c.mespg.split('-')[1]+'</small>':''))+'</div>'
     +'<div class="k-parc" onclick="openCustoForm(\''+c.id+'\')">'+pc+'</div>'
     +'<div class="k-val" onclick="openCustoForm(\''+c.id+'\')">'+brl(c.valor)+'</div>'
     +'<div class="k-st">'+((custoQuitado(c)&&!custoPagoMes(c)&&!c.fim)?'<span class="stsel s-pago" style="display:inline-block">Quitado ✓</span>':custoStatusSel(c))+'</div></div>';
 }
-function custosList(list){if(isV2()&&list.length&&!list.every(c=>c.fim||(custoQuitado(c)&&!custoPagoMes(c))))return custosV2(list);return '<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
+function custosList(list){if(isV2()&&list.length&&!list.every(c=>c.fim||(custoQuitado(c)&&!custoPagoMes(c))))return custosV2(list);return '<div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nada aqui. Clica em <b>+ Custo</b>.</div>')+'</div>';}
 /* Custos por empresa: o que é só dela e a parte dela no que é dividido */
 let cEmp='ADmídia';
 function setCEmp(e){cEmp=e;renderCustos();}
@@ -991,14 +995,14 @@ function renderCustoEmp(chips){const per=cPeriodo||ymNow(),k=Math.max(0,ymDiff(y
   const kc=(l,v,cor,s)=>'<div class="kc"><div class="l">'+l+'</div><div class="n" style="font-size:20px'+(cor?';color:'+cor:'')+'">'+brl(v)+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>';
   const kpis='<div class="kpis">'+kc('Custo fixo',fx,GCOL.fixo)+kc('Salário',sal,GCOL[sk('Salário')])+kc('Fixo + salário',fx+sal,'var(--accent)','custo pra manter a empresa')+kc('Investimento',inv,GCOL.investimento,'com investimento: '+brl(fx+sal+inv))+'</div>';
   const row=x=>{const c=x.c;return '<div class="krow" style="cursor:pointer" onclick="openCustoForm(\''+c.id+'\')"><div class="k-nm"><div class="cl-nm">'+esc(c.fornecedor||c.descricao)+'</div><div class="cl-sub">'+[c.descricao,x.outras.length?Math.round(x.f*100)+'% · com '+x.outras.join(', '):''].filter(Boolean).map(esc).join(' · ')+'</div></div><div class="k-venc">'+(c.venc?'Venc '+esc(c.venc):'—')+'</div><div class="k-parc">'+(+c.tt>0?(+c.pg||0)+'/'+(+c.tt):'—')+'</div><div class="k-val">'+brl(c.valor)+'</div><div class="k-val">'+brl(x.v)+'</div></div>';};
-  const sec=(tit,a)=>a.length?'<div class="count" style="margin-top:18px">'+tit+' · '+brl(soma(a))+'</div><div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span style="text-align:right">Valor</span><span style="text-align:right">Parte '+esc(cEmp)+'</span></div>'+G.map(([g,nm])=>{const it=a.filter(x=>gr(x)===g).sort((p,q)=>q.v-p.v);return it.length?grpHead(GCOL[sk(g)]||'var(--ink)',nm,it.length,soma(it))+it.map(row).join(''):'';}).join('')+'</div>':'';
+  const sec=(tit,a)=>a.length?'<div class="count" style="margin-top:18px">'+tit+' · '+brl(soma(a))+'</div><div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcelas</span><span style="text-align:right">Valor</span><span style="text-align:right">Parte '+esc(cEmp)+'</span></div>'+G.map(([g,nm])=>{const it=a.filter(x=>gr(x)===g).sort((p,q)=>q.v-p.v);return it.length?grpHead(GCOL[sk(g)]||'var(--ink)',nm,it.length,soma(it))+it.map(row).join(''):'';}).join('')+'</div>':'';
   document.getElementById('content').innerHTML=chips+'<div class="chips">'+emps.map(e=>'<div class="chip '+(e===cEmp?'on':'')+'" onclick="setCEmp(\''+esc(e)+'\')">'+esc(e)+'</div>').join('')+'</div><div class="count">'+esc(cEmp)+' · '+ymLabel(per)+'</div>'+kpis+(its.length?sec('Só da '+esc(cEmp),its.filter(x=>!x.outras.length))+sec('Divididos · parte da '+esc(cEmp),its.filter(x=>x.outras.length)):'<div class="empty">Nenhum custo nesse mês.</div>');}
 function renderCustosBusca(q){const off=c=>(c.fim||custoQuitado(c))?1:0;
   const cs=CUSTOS.filter(c=>qHit(q,c.fornecedor,c.descricao,c.emp,c.grupo,c.obs)).sort((a,b)=>off(a)-off(b)||sk(a.fornecedor||a.descricao).localeCompare(sk(b.fornecedor||b.descricao)));
   const fx=FLUXO.filter(t=>qHit(q,t.desc,t.cat,t.emp,t.conta)).sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
   if(!cs.length&&!fx.length){document.getElementById('content').innerHTML='<div class="empty"><h3>Nada encontrado</h3>Não tem "'+esc(q)+'" nos custos nem no fluxo de caixa.</div>';return;}
   const T=fx.length?txTable(fx):null;
-  document.getElementById('content').innerHTML='<div class="count">'+cs.length+(cs.length===1?' custo':' custos')+' · busca em todos, inclusive encerrados</div>'+(cs.length?'<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+cs.map(custoRow).join('')+'</div>':'<div class="empty" style="padding:18px">Nenhum custo cadastrado com esse nome.</div>')
+  document.getElementById('content').innerHTML='<div class="count">'+cs.length+(cs.length===1?' custo':' custos')+' · busca em todos, inclusive encerrados</div>'+(cs.length?'<div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+cs.map(custoRow).join('')+'</div>':'<div class="empty" style="padding:18px">Nenhum custo cadastrado com esse nome.</div>')
   +(T?'<div class="count" style="margin-top:20px">'+fx.length+(fx.length===1?' lançamento':' lançamentos')+' no fluxo de caixa · saiu '+brl(T.sai)+(T.ent?' · entrou '+brl(T.ent):'')+'</div>'+T.html:'');}
 function renderCustos(){
   if(sb&&!custoLoaded){document.getElementById('content').innerHTML='<div class="state">Carregando custos…</div>';return;}
@@ -1013,7 +1017,7 @@ function renderCustos(){
     let list=CUSTOS.filter(c=>c.fim||custoQuitado(c));
     list.sort((a,b)=>dmy(b.data).localeCompare(dmy(a.data)));
     const total=list.reduce((a,c)=>a+(+c.valor||0),0);
-    document.getElementById('content').innerHTML=chips+'<div class="count">'+list.length+' encerradas/quitadas</div><div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nenhuma encerrada.</div>')+'</div>';return;
+    document.getElementById('content').innerHTML=chips+'<div class="count">'+list.length+' encerradas/quitadas</div><div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>'+(list.length?list.map(custoRow).join(''):'<div class="empty">Nenhuma encerrada.</div>')+'</div>';return;
   }
   const months=monthOpts(48);
   const totK=kk=>CUSTOS.filter(c=>custoAtivoK(c,kk)).reduce((a,c)=>a+(+c.valor||0),0);
@@ -1264,7 +1268,25 @@ function cliProxData(c){const d=parseInt(c.venc)||0;if(!d)return null;let ym=ymN
 function cliMesSt(c,ym){const now=ymNow();if(isPermCli(c)||sk(c.status)==='permuta')return ym>now?'f':'q';const dev=cliMeses(c);if(dev.includes(ym))return 'd';if(ym>now)return 'f';
   const s=effSt(c);let ult;if(s==='pago')ult=cliMesPg(c)||now;else ult=ymAdd(dev.length?dev[0]:(cliDesde(c)||now),-1);
   if(ym===now&&s!=='pago')return 'f';if(ym>ult)return 'f';const tt=+c.tt||0,pg=+c.pg||0;if(tt>0&&ymDiff(ym,ult)>=pg)return 'n';return 'p';}
-function mesStrip(c){const now=ymNow();let h='';for(let k=-3;k<=1;k++){const ym=ymAdd(now,k),st=cliMesSt(c,ym);h+='<span class="'+st+(k===0?' now':'')+'">'+MESABR[+ym.split('-')[1]-1]+'</span>';}return '<div class="m3">'+h+'</div>';}
+function mesStrip(c){const now=ymNow();let h='';const pay=CANW&&!isPermCli(c)&&sk(c.status)!=='permuta'&&effSt(c)!=='cancelado';for(let k=-3;k<=1;k++){const ym=ymAdd(now,k),st=cliMesSt(c,ym),ck=pay&&(st==='d'||(st==='f'&&k===0));h+='<span class="'+st+(k===0?' now':'')+(ck?' ck':'')+'"'+(ck?' onclick="mesPop(event,\'c\',\''+c.id+'\',\''+ym+'\')"':'')+'>'+MESABR[+ym.split('-')[1]-1]+'</span>';}return '<div class="m3">'+h+'</div>';}
+// custos: mesma faixa de meses
+function custoMesSt(c,ym){const now=ymNow();if(custoOff(c)){const ini=c.mespg;if(ym<ini)return 'n';return 'f';}
+  const lt=custoLate(c),dev=[];if(lt>=1){const a=custoDesde(c);for(let i=0;i<lt;i++)dev.push(ymAdd(a,i));}
+  if(dev.includes(ym))return 'd';if(ym>now)return 'f';const pago=custoPagoMes(c);if(ym===now&&!pago)return 'f';
+  const ult=sk(c.status)==='pago'?(custoMesPg(c)||now):ymAdd(dev.length?dev[0]:custoDesde(c),-1);if(ym>ult)return 'f';const tt=+c.tt||0,pg=+c.pg||0;if(tt>0&&ymDiff(ym,ult)>=pg)return 'n';return 'p';}
+function custoStrip(c){if(c.fim||(custoQuitado(c)&&!custoPagoMes(c)))return '<div></div>';const now=ymNow();let h='';for(let k=-3;k<=1;k++){const ym=ymAdd(now,k),st=custoMesSt(c,ym),ck=CANW&&(st==='d'||(st==='f'&&k===0&&!custoOff(c)));h+='<span class="'+st+(k===0?' now':'')+(ck?' ck':'')+'"'+(ck?' onclick="mesPop(event,\'k\',\''+c.id+'\',\''+ym+'\')"':'')+'>'+MESABR[+ym.split('-')[1]-1]+'</span>';}return '<div class="m3">'+h+'</div>';}
+// balãozinho "Pagou" ao clicar no mês
+function mesPop(ev,tipo,id,ym){ev.stopPropagation();const o=tipo==='c'?CLIENTES.find(x=>x.id===id):CUSTOS.find(x=>x.id===id);if(!o)return;
+  let dev=[];if(tipo==='c')dev=cliMeses(o);else{const lt=custoLate(o);if(lt>=1){const a=custoDesde(o);for(let i=0;i<lt;i++)dev.push(ymAdd(a,i));}}
+  let k=dev.indexOf(ym)+1,meses;if(k>0)meses=dev.slice(0,k);else{k=dev.length+1;meses=dev.concat([ym]);}
+  const v=(+o.valor||0)*k,nome=tipo==='c'?o.empresa:(o.fornecedor||o.descricao);
+  let el=document.getElementById('mpop');if(!el){el=document.createElement('div');el.id='mpop';document.body.appendChild(el);}
+  el.innerHTML='<div class="mp-t">'+esc(nome)+'</div><div class="mp-m">'+(k>1?'Quita '+mesesTxt(meses):mesesTxt(meses)+(dev.length?'':' · adiantado'))+'</div><div class="mp-v">'+brl(v)+' <small>'+(tipo==='c'?'entra':'sai')+' no fluxo</small></div><div class="mp-b"><button class="b3 o" onclick="mesPopClose()">Cancelar</button><button class="b3" onclick="mesPopOk(\''+tipo+'\',\''+id+'\','+k+')">'+(tipo==='c'?'Pagou':'Paguei')+'</button></div>';
+  const r=ev.currentTarget.getBoundingClientRect();el.style.display='block';const w=250;let x=r.left+r.width/2-w/2+scrollX;x=Math.max(8,Math.min(x,scrollX+innerWidth-w-8));el.style.left=x+'px';el.style.top=(r.bottom+scrollY+8)+'px';}
+function mesPopClose(){const el=document.getElementById('mpop');if(el)el.style.display='none';}
+document.addEventListener('click',e=>{const el=document.getElementById('mpop');if(el&&el.style.display==='block'&&!el.contains(e.target))mesPopClose();});
+async function mesPopOk(tipo,id,k){const b=document.querySelector('#mpop .b3:not(.o)');if(b){if(b.dataset.busy)return;b.dataset.busy=1;b.textContent='Salvando…';}
+  try{if(tipo==='c'){PAGAR_K=k;await pagarConf(id);}else{for(let i=0;i<k;i++){const c=CUSTOS.find(x=>x.id===id);if(!c)break;await marcarPago(c);}renderActive();}}catch(e){writeErr(e);}mesPopClose();}
 function diasAte(dt){const h=new Date();h.setHours(0,0,0,0);return Math.round((dt-h)/864e5);}
 function row3(c){const s=effSt(c),d=parseInt(c.venc)||0,v=+c.valor||0,late=cliLate(c),pg=+c.pg||0,tt=+c.tt||0,P=isPermCli(c)||s==='permuta';
   const tipo=isLed(c)?'ADled':(sk(c.tipo||'')==='corporativo'?'Corp':(c.tipo||'Anúncio'));
@@ -1303,13 +1325,13 @@ function clientesV2(list){
   G.forEach(([nome,cor,f,v])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+v(c),0))+it.map(crow2).join('');});
   return h+'</div>';}
 // mês futuro: lista prevista por grupo, sem status (nada está atrasado no futuro)
-function custosFuturo(list,k){let h='<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcela</span><span>Valor</span><span></span></div>';
+function custosFuturo(list,k){let h='<div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcela</span><span>Valor</span><span></span></div>';
   GRUPOS.forEach(g=>{const it=list.filter(c=>c.grupo===g).sort((a,b)=>(a.venc||99)-(b.venc||99));if(!it.length)return;h+=grpHead(GCOL[sk(g)]||'#999',g,it.length,it.reduce((a,c)=>a+(+c.valor||0),0))
     +it.map(c=>{const tt=+c.tt||0,n=tt?Math.min((+c.pg||0)+k-custoOff(c)+(custoPagoMes(c)?0:1),tt):0;return '<div class="krow" style="cursor:pointer" onclick="openCustoForm(\''+c.id+'\')"><span class="k-nm"><b>'+esc(c.fornecedor||c.descricao)+'</b></span><span>'+(c.venc?'dia '+String(c.venc).padStart(2,'0'):'—')+'</span><span>'+(tt?n+'/'+tt:'—')+'</span><span class="k-val"><b>'+brl(c.valor)+'</b></span><span style="color:var(--faint);font-size:12px">previsto</span></div>';}).join('');});
   return h+'</div>';}
 function custosV2(list){
   const G=[['Atrasadas','var(--red)',c=>statusCusto(c)==='Atrasado'],['A vencer','var(--accent)',c=>['Em aberto','Urgente'].includes(statusCusto(c))],['Pagas este mês','var(--green)',c=>statusCusto(c)==='Pago']];
-  let h='<div class="ctbl"><div class="krow h"><span>Custo</span><span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>';
+  let h='<div class="ctbl"><div class="krow h"><span>Custo</span>'+(document.body.classList.contains('ct3')?'<span>'+[-3,-2,-1,0,1].map(k=>MESABR[+ymAdd(ymNow(),k).split('-')[1]-1]).join(' ')+'</span>':'')+'<span>Venc</span><span>Parcelas</span><span>Valor</span><span>Status</span></div>';
   G.forEach(([nome,cor,f])=>{const it=list.filter(f);if(!it.length)return;h+=grpHead(cor,nome,it.length,it.reduce((a,c)=>a+(+c.valor||0)*(nome==='Atrasadas'?Math.max(1,custoLate(c)):1),0))+it.map(custoRow).join('');});
   return h+'</div>';}
 // correção pontual (30/10/2026): clientes antigos com mês preso na ficha. Davi informou quantos meses cada um deve de verdade
