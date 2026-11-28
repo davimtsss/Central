@@ -495,7 +495,7 @@ body.ct3 .ov-cols>*,body.ct3 .ov-chips>*{min-width:0}body.ct3 .ov-r{min-width:0}
 /* base de clientes */
 .bopp{padding:13px 16px!important;margin-bottom:14px;font-size:14px;border-color:#1e4237!important;background:#0f1a17!important}.bopp b{color:#2bd4b4}.bopp span{color:#8a8f9c}
 .btool{display:flex;gap:10px;margin:-4px 0 14px;flex-wrap:wrap}.btool .fi{width:auto;min-width:200px;margin:0;padding:9px 12px}
-.bs{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 170px 140px 100px minmax(0,1.2fr) 96px;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid #1d1f24}
+.bs{display:grid;grid-template-columns:minmax(0,1.8fr) 110px minmax(0,1fr) minmax(0,1.3fr) 150px 110px;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid #1d1f24}
 .bs.h{border-top:0;font-size:10px;letter-spacing:.12em;color:#5d626e;font-weight:700;text-transform:uppercase;padding:9px 16px}
 .bs:not(.h):hover{background:#15161a}
 .bn3{min-width:0;cursor:pointer}.bn3 b{display:block;font-weight:600;font-size:13.5px}.bn3 small{display:block;color:#8a8f9c;font-size:11.5px}
@@ -507,12 +507,14 @@ body.ct3 .ov-cols>*,body.ct3 .ov-chips>*{min-width:0}body.ct3 .ov-r{min-width:0}
 .bof small{color:#5d626e;font-size:12px}
 .bds b{display:block;font-size:13px;font-weight:600}.bds small{display:block;color:#8a8f9c;font-size:11px}
 .bm{text-align:right;font-weight:700;font-size:13.5px}
-.nch .nr{display:grid;grid-template-columns:minmax(0,2fr) repeat(4,minmax(0,1fr));gap:8px;padding:9px 4px;border-top:1px solid #1d1f24;font-size:13px;cursor:pointer}
+.nch .nr{display:grid;grid-template-columns:minmax(0,2fr) repeat(5,minmax(0,1fr));gap:8px;padding:9px 4px;border-top:1px solid #1d1f24;font-size:13px;cursor:pointer}
 .nch .nr:hover{background:#1a1c21}.nch .nr.h{border-top:0;cursor:default;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5d626e;font-weight:700}.nch .nr.h:hover{background:none}
 .nch .nr>span:not(:first-child){text-align:center}
+.bst span{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border-radius:5px;white-space:nowrap}.bst .at{background:#12302c;color:#2bd4b4}.bst .en{background:#24262c;color:#8a8f9c}
+.bs.enc .bn3 b{color:#b4b8c2}
 @media(max-width:1060px){.bs.h{display:none}.bs{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:14px}
- .bn3{grid-area:1/1}.bm{grid-area:1/2}.bni{grid-area:2/1;font-size:12.5px}.bds{grid-area:2/2;text-align:right}
- .bsvs{grid-area:3/1/4/3;margin-top:4px}.bof{grid-area:4/1}.bs>div:last-child{grid-area:4/2}.bs .b3{width:auto;padding:7px 14px}}
+ .bn3{grid-area:1/1}.bst{grid-area:1/2;text-align:right}.bni{grid-area:2/1;font-size:12.5px}.bm{grid-area:2/2;text-align:right}
+ .bsvs{grid-area:3/1}.bds{grid-area:3/2;text-align:right}}
 </style>
 </head>
 <body class="ct3">
@@ -662,7 +664,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(typeof cliEncerrado==='function'&&cliEncerrado(c)&&(cliLate(c)<1))return 'cancelado';if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1128-0000';
+const BUILD='1128-0003';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -734,7 +736,7 @@ async function doLogin(){
 async function doLogout(){try{await sb.auth.signOut();}catch(e){}location.reload();}
 boot();
 const SBICO={"base":"<svg viewBox=\"0 0 24 24\"><path d=\"M4 7h16M4 12h16M4 17h10\"/><circle cx=\"19\" cy=\"17\" r=\"2.5\"/></svg>","overview": "<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1.5\"/></svg>", "clientes": "<svg viewBox=\"0 0 24 24\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5\"/><path d=\"M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2\"/></svg>", "onpro": "<svg viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2.5\"/><path d=\"M3 10h18M7 15h3\"/></svg>", "custos": "<svg viewBox=\"0 0 24 24\"><path d=\"M6 3h12v18l-3-2-3 2-3-2-3 2z\"/><path d=\"M9 8h6M9 12h6\"/></svg>", "fluxo": "<svg viewBox=\"0 0 24 24\"><path d=\"M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3\"/></svg>", "vendas": "<svg viewBox=\"0 0 24 24\"><path d=\"M3 17l6-6 4 4 8-8\"/><path d=\"M15 7h6v6\"/></svg>", "dre": "<svg viewBox=\"0 0 24 24\"><path d=\"M4 20V10M10 20V4M16 20v-7M22 20H2\"/></svg>", "dm": "<svg viewBox=\"0 0 24 24\"><circle cx=\"8\" cy=\"9\" r=\"3\"/><circle cx=\"16\" cy=\"9\" r=\"3\"/><path d=\"M2.5 19c.7-3 2.8-4.5 5.5-4.5s4.8 1.5 5.5 4.5M10.5 19c.7-3 2.8-4.5 5.5-4.5s4.8 1.5 5.5 4.5\"/></svg>"};
-const PGT={overview:['Visão geral','fechamento do mês'],clientes:['Cobranças','clientes ADmídia'],base:['Base de clientes','quem já é cliente e o que dá pra oferecer'],vendas:['Vendas','contratos fechados'],fluxo:['Fluxo de caixa','tudo que entrou e saiu'],custos:['Custos','contas a pagar'],dm:['Sócios','Davi e Matheus'],dre:['DRE','resultado por empresa']};
+const PGT={overview:['Visão geral','fechamento do mês'],clientes:['Cobranças','clientes ADmídia'],base:['Base de clientes','todos os clientes, ativos e encerrados, e o que já usaram'],vendas:['Vendas','contratos fechados'],fluxo:['Fluxo de caixa','tudo que entrou e saiu'],custos:['Custos','contas a pagar'],dm:['Sócios','Davi e Matheus'],dre:['DRE','resultado por empresa']};
 function sbBadges(){let cli=0,cus=0;try{if(cloaded)cli=CLIENTES.filter(c=>!isLed(c)&&!isPermCli(c)&&['naopago','urgente'].includes(effSt(c))).length;}catch(e){}try{if(custoLoaded)cus=CUSTOS.filter(c=>!c.fim&&custoAtivoK(c,0)&&statusCusto(c)!=='Pago'&&!custoOff(c)&&custoLate(c)>=1).length;}catch(e){}let op=0;try{if(asaasLoaded&&!asaasErr)op=asaasAgg().length;}catch(e){}return {clientes:cli,custos:cus,onpro:op};}
 function renderSide(){const el=document.getElementById('sbnav');if(!el)return;const B=sbBadges(),onp=(tab==='clientes'&&cfiltro==='onpro');
   const it=(k,lbl,js,on)=>'<div class="sb-it'+(on?' on':'')+'" onclick="'+js+'">'+(SBICO[k]||'')+'<span>'+lbl+'</span>'+(B[k]?'<em>'+B[k]+'</em>':'')+'</div>';
@@ -1517,7 +1519,7 @@ function cliDesdeEst(c){const x=CLICFG[c.id];if(x&&x.desde)return {ym:x.desde,es
 function tempoTxt(ym){const n=ymDiff(ym,ymNow());if(n<1)return 'este mês';const a=Math.floor(n/12),m=n%12;return (a?a+(a>1?' anos':' ano'):'')+(a&&m?' e ':'')+(m?m+(m>1?' meses':' mês'):'');}
 function svcDe(c){const t=sk(c.tipo||''),o=new Set();if(t==='anuncio')o.add('A');if(t==='corporativo')o.add('C');if(t==='hibrido'){o.add('A');o.add('C');}if(isLed(c)||cliEmp(c)==='ADled')o.add('L');if(!o.size&&t!=='permuta')o.add('A');return o;}
 function baseGrupos(){const g={};CLIENTES.forEach(c=>{const k=sk((c.empresa||'').replace(/\(.*?\)/g,'').replace(/\bpermuta\b/i,''))||c.id;(g[k]=g[k]||{k,its:[]}).its.push(c);});
-  return Object.values(g).map(G=>{const at=G.its.filter(c=>effSt(c)!=='cancelado'),base=at.length?at:G.its,sv=new Set();base.forEach(c=>svcDe(c).forEach(x=>sv.add(x)));
+  return Object.values(g).map(G=>{const at=G.its.filter(c=>effSt(c)!=='cancelado'&&!cliQuitado(c)),base=at.length?at:G.its,sv=new Set();G.its.forEach(c=>svcDe(c).forEach(x=>sv.add(x)));
     const nome=base.slice().sort((a,b)=>(a.empresa||'').length-(b.empresa||'').length)[0].empresa.replace(/\s*\(.*?\)\s*/g,' ').trim();
     const ds=G.its.map(cliDesdeEst).filter(Boolean).sort((a,b)=>a.ym.localeCompare(b.ym))[0]||null;
     const seg=(base.find(c=>(c.seg||'').trim())||{}).seg||'',cid=(base.find(c=>(c.cidade||'').trim())||{}).cidade||'';
@@ -1525,27 +1527,26 @@ function baseGrupos(){const g={};CLIENTES.forEach(c=>{const k=sk((c.empresa||'')
     const falta=['A','C'].filter(x=>!sv.has(x));return {k:G.k,its:G.its,nome,ativo:at.length>0,sv,ds,seg:seg.trim(),cid,mens,perm,falta,wpp:(G.its.find(c=>c.wpp)||{}).wpp||''};});}
 function setBFil(f){bFil=f;renderBase();}
 function renderBase(){if(!cloaded){document.getElementById('content').innerHTML='<div class="state">Carregando clientes…</div>';return;}
-  const all=baseGrupos(),at=all.filter(g=>g.ativo),ex=all.filter(g=>!g.ativo),q=qVal();
-  const cnt=x=>at.filter(g=>g.sv.has(x)).length,um=at.filter(g=>g.sv.size===1).length;
+  const all=baseGrupos(),at=all.filter(g=>g.ativo),en=all.filter(g=>!g.ativo),q=qVal();
+  const cnt=x=>all.filter(g=>g.sv.has(x)).length;
   const kc=(l,n,s,cor)=>'<div class="kc"><div class="l">'+l+'</div><div class="n"'+(cor?' style="color:'+cor+'"':'')+'>'+n+'</div><div class="s">'+s+'</div></div>';
-  let h='<div class="kpis">'+kc('Clientes ativos',at.length,brl(at.reduce((a,g)=>a+g.mens,0))+'/mês em mensalidades')+kc('Anúncio',cnt('A'),'clientes usando',SVC.A[1])+kc('Corporativo',cnt('C'),'clientes usando',SVC.C[1])+kc('LED',cnt('L'),'compraram painel da ADled',SVC.L[1])+'</div>';
-  h+='<div class="panel bopp"><b>'+um+' de '+at.length+'</b> clientes usam <b>só um serviço</b>. É aí que dá pra vender mais.'+(ex.length?' <span>Mais '+ex.length+' ex-clientes pra reativar.</span>':'')+'</div>';
-  const F=[['todos','Todos ativos'],['soA','Só anúncio'],['soC','Só corporativo'],['soL','Só LED'],['dois','Usam 2+'],['ex','Ex-clientes']];
-  const nichos={};at.forEach(g=>{const n=g.seg||'Sem nicho';nichos[n]=nichos[n]||{n,q:0,A:0,C:0,L:0};nichos[n].q++;g.sv.forEach(x=>nichos[n][x]++);});
+  let h='<div class="kpis">'+kc('Clientes na base',all.length,at.length+' ativos · '+en.length+' encerrados')+kc('Anúncio',cnt('A'),'já usaram',SVC.A[1])+kc('Corporativo',cnt('C'),'já usaram',SVC.C[1])+kc('LED',cnt('L'),'compraram painel da ADled',SVC.L[1])+'</div>';
+  const F=[['todos','Todos'],['at','Ativos'],['en','Encerrados'],['A','Anúncio'],['C','Corporativo'],['L','LED']];
+  const nichos={};all.forEach(g=>{const n=g.seg||'Sem nicho';nichos[n]=nichos[n]||{n,q:0,at:0,A:0,C:0,L:0};nichos[n].q++;if(g.ativo)nichos[n].at++;g.sv.forEach(x=>nichos[n][x]++);});
   const NL=Object.values(nichos).sort((a,b)=>b.q-a.q);
   h+='<div class="chips">'+F.map(f=>'<div class="chip '+(bFil===f[0]?'on':'')+'" onclick="setBFil(\''+f[0]+'\')">'+f[1]+'</div>').join('')+'</div>';
   h+='<div class="btool"><select class="fi" onchange="bNicho=this.value;renderBase()"><option value="">Todos os nichos</option>'+NL.map(n=>'<option'+(bNicho===n.n?' selected':'')+'>'+esc(n.n)+'</option>').join('')+'</select><select class="fi" onchange="bOrd=this.value;renderBase()">'+[['tempo','Mais tempo com a gente'],['mens','Maior mensalidade'],['nome','Nome']].map(o=>'<option value="'+o[0]+'"'+(bOrd===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>';
-  let L=(bFil==='ex'?ex:at).filter(g=>{if(bFil==='soA')return g.sv.size===1&&g.sv.has('A');if(bFil==='soC')return g.sv.size===1&&g.sv.has('C');if(bFil==='soL')return g.sv.size===1&&g.sv.has('L');if(bFil==='dois')return g.sv.size>=2;return true;});
+  let L=all.filter(g=>bFil==='at'?g.ativo:bFil==='en'?!g.ativo:['A','C','L'].includes(bFil)?g.sv.has(bFil):true);
   if(bNicho)L=L.filter(g=>(g.seg||'Sem nicho')===bNicho);if(q)L=all.filter(g=>qHit(q,g.nome,g.seg,g.cid));
-  L.sort((a,b)=>bOrd==='mens'?b.mens-a.mens:bOrd==='nome'?sk(a.nome).localeCompare(sk(b.nome)):((a.ds?a.ds.ym:'9999').localeCompare(b.ds?b.ds.ym:'9999'))||b.mens-a.mens);
+  L.sort((a,b)=>(b.ativo-a.ativo)||(bOrd==='mens'?b.mens-a.mens:bOrd==='nome'?sk(a.nome).localeCompare(sk(b.nome)):((a.ds?a.ds.ym:'9999').localeCompare(b.ds?b.ds.ym:'9999'))||b.mens-a.mens));
   const pill=x=>'<span class="bsv" style="--c:'+SVC[x][1]+'">'+SVC[x][0]+'</span>';
-  h+='<div class="count">'+L.length+' cliente'+(L.length===1?'':'s')+(bNicho?' · '+esc(bNicho):'')+'</div><div class="t3"><div class="bs h"><span>Cliente</span><span>Nicho</span><span>Usa hoje</span><span>Com a gente</span><span style="text-align:right">Mensal</span><span>Pode oferecer</span><span></span></div>';
-  h+=L.map(g=>{const c0=g.its[0];return '<div class="bs"><div class="bn3" onclick="openDetail(\''+c0.id+'\')"><b>'+esc(g.nome)+'</b><small>'+esc(g.cid||'')+(g.its.length>1?' · '+g.its.length+' cadastros':'')+(g.perm?' · permuta':'')+'</small></div>'
+  h+='<div class="count">'+L.length+' cliente'+(L.length===1?'':'s')+(bNicho?' · '+esc(bNicho):'')+'</div><div class="t3"><div class="bs h"><span>Cliente</span><span>Situação</span><span>Nicho</span><span>Já usou</span><span>Com a gente</span><span style="text-align:right">Mensal</span></div>';
+  h+=L.map(g=>{const c0=g.its[0];return '<div class="bs'+(g.ativo?'':' enc')+'"><div class="bn3" onclick="openDetail(\''+c0.id+'\')"><b>'+esc(g.nome)+'</b><small>'+esc(g.cid||'')+(g.its.length>1?' · '+g.its.length+' cadastros':'')+(g.perm?' · permuta':'')+'</small></div>'
+    +'<div class="bst"><span class="'+(g.ativo?'at':'en')+'">'+(g.ativo?'Ativo':'Encerrado')+'</span></div>'
     +'<div class="bni">'+(g.seg?esc(g.seg):'<a onclick="openForm(\''+c0.id+'\')">definir</a>')+'</div><div class="bsvs">'+[...g.sv].sort().map(pill).join('')+'</div>'
-    +'<div class="bds">'+(g.ds?'<b>'+tempoTxt(g.ds.ym)+'</b><small>desde '+ymLabel(g.ds.ym)+(g.ds.est?' · estimado':'')+'</small>':'<a onclick="openForm(\''+c0.id+'\')">definir</a>')+'</div>'
-    +'<div class="bm">'+(g.mens?brl(g.mens):'—')+'</div><div class="bof">'+(g.falta.length?g.falta.map(x=>'<span class="bsv o" style="--c:'+SVC[x][1]+'">'+SVC[x][0]+'</span>').join(''):'<small>anúncio e corporativo ✓</small>')+'</div>'
-    +'<div>'+(g.falta.length&&CANW?'<button class="b3 o" onclick="ofertar(\''+g.k+'\')">Oferecer</button>':'')+'</div></div>';}).join('')+'</div>';
-  h+='<div class="panel" style="margin-top:22px"><div class="ph">Nichos da base</div><div class="nch"><div class="nr h"><span>Nicho</span><span>Clientes</span><span>Anúncio</span><span>Corporativo</span><span>LED</span></div>'+NL.map(n=>'<div class="nr" onclick="bNicho=\''+esc(n.n).replace(/'/g,'')+'\';bFil=\'todos\';renderBase();window.scrollTo(0,0)"><span>'+esc(n.n)+'</span><span><b>'+n.q+'</b></span><span>'+n.A+'</span><span>'+n.C+'</span><span>'+n.L+'</span></div>').join('')+'</div><div class="note" style="margin-top:8px">Clica no nicho pra filtrar. Ex.: nicho com muito anúncio e zero corporativo é campanha pronta. LED aparece só pra quem comprou painel da ADled.</div></div>';
+    +'<div class="bds">'+(g.ds?'<b>'+(g.ativo?tempoTxt(g.ds.ym):'desde '+ymLabel(g.ds.ym))+'</b><small>'+(g.ativo?'desde '+ymLabel(g.ds.ym):'cliente encerrado')+(g.ds.est?' · estimado':'')+'</small>':'<a onclick="openForm(\''+c0.id+'\')">definir</a>')+'</div>'
+    +'<div class="bm">'+(g.ativo&&g.mens?brl(g.mens):'—')+'</div></div>';}).join('')+'</div>';
+  h+='<div class="panel" style="margin-top:22px"><div class="ph">Nichos da base</div><div class="nch"><div class="nr h"><span>Nicho</span><span>Clientes</span><span>Ativos</span><span>Anúncio</span><span>Corporativo</span><span>LED</span></div>'+NL.map(n=>'<div class="nr" onclick="bNicho=\''+esc(n.n).replace(/'/g,'')+'\';bFil=\'todos\';renderBase();window.scrollTo(0,0)"><span>'+esc(n.n)+'</span><span><b>'+n.q+'</b></span><span>'+n.at+'</span><span>'+n.A+'</span><span>'+n.C+'</span><span>'+n.L+'</span></div>').join('')+'</div><div class="note" style="margin-top:8px">Conta clientes ativos e encerrados. Clica no nicho pra filtrar. LED = quem comprou painel da ADled.</div></div>';
   document.getElementById('content').innerHTML=h;}
 function ofertar(k){const g=baseGrupos().find(x=>x.k===k);if(!g)return;const uso=[...g.sv].map(x=>SVC[x][0].toLowerCase()).join(' e '),tem=g.ds?' há '+tempoTxt(g.ds.ym):'';
   const T={C:'Oi, '+g.nome+'! Aqui é o Davi da ADmídia. Vocês já estão com a gente'+tem+' no '+uso+', e eu queria te mostrar a TV corporativa: telas aí no estabelecimento com cardápio, promoções e avisos, trocados pelo celular, sem pendrive. Posso te mandar como funciona?',
