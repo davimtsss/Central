@@ -662,7 +662,7 @@ function proxCobDefault(c){const s=sk(c.status||''),now=ymNow();if(c.mespg){retu
 function effSt(c){const s=sk(c.status);if(['permuta','cancelado'].includes(s))return s;if(typeof cliEncerrado==='function'&&cliEncerrado(c)&&(cliLate(c)<1))return 'cancelado';if(cliQuitado(c))return 'pago';if(['urgente','naopago'].includes(s)){if(cliLate(c)>=1||!(parseInt(c.venc)||0))return s;return 'emaberto';}if(cliLate(c)>=1)return 'naopago';if(s==='pago'&&cliMesPg(c)<ymNow())return 'emaberto';return s;}
 function nextMonths(n){const out=[];const d=new Date();for(let i=1;i<=n;i++){const m=new Date(d.getFullYear(),d.getMonth()+i,1);const mm=String(m.getMonth()+1).padStart(2,'0');out.push({ym:m.getFullYear()+'-'+mm,lbl:(MES[mm]||mm)+'/'+String(m.getFullYear()).slice(2)});}return out;}
 
-const BUILD='1127-2357';
+const BUILD='1128-0000';
 // auto-atualização: compara com version.txt (sem cache) e recarrega com a versão nova
 async function checkBuild(){try{const r=await fetch('version.txt?ts='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=(await r.text()).trim();if(v&&v!==BUILD&&!sessionStorage.getItem('reload_'+v)){sessionStorage.setItem('reload_'+v,'1');location.replace(location.pathname+'?v='+v);}}catch(_){}}
 document.addEventListener("DOMContentLoaded",()=>{const v=document.getElementById("ver");if(v){v.textContent="versão "+BUILD+" · copiar diagnóstico";v.onclick=copiarDiag;v.style.cursor="pointer";}});checkBuild();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBuild();});setInterval(checkBuild,5*60*1000);
@@ -1522,13 +1522,13 @@ function baseGrupos(){const g={};CLIENTES.forEach(c=>{const k=sk((c.empresa||'')
     const ds=G.its.map(cliDesdeEst).filter(Boolean).sort((a,b)=>a.ym.localeCompare(b.ym))[0]||null;
     const seg=(base.find(c=>(c.seg||'').trim())||{}).seg||'',cid=(base.find(c=>(c.cidade||'').trim())||{}).cidade||'';
     const mens=at.filter(c=>!isLed(c)&&!isUnico(c)&&!isPermCli(c)).reduce((a,c)=>a+(+c.valor||0),0),perm=at.some(c=>isPermCli(c)||sk(c.status)==='permuta');
-    const falta=['A','C','L'].filter(x=>!sv.has(x));return {k:G.k,its:G.its,nome,ativo:at.length>0,sv,ds,seg:seg.trim(),cid,mens,perm,falta,wpp:(G.its.find(c=>c.wpp)||{}).wpp||''};});}
+    const falta=['A','C'].filter(x=>!sv.has(x));return {k:G.k,its:G.its,nome,ativo:at.length>0,sv,ds,seg:seg.trim(),cid,mens,perm,falta,wpp:(G.its.find(c=>c.wpp)||{}).wpp||''};});}
 function setBFil(f){bFil=f;renderBase();}
 function renderBase(){if(!cloaded){document.getElementById('content').innerHTML='<div class="state">Carregando clientes…</div>';return;}
   const all=baseGrupos(),at=all.filter(g=>g.ativo),ex=all.filter(g=>!g.ativo),q=qVal();
   const cnt=x=>at.filter(g=>g.sv.has(x)).length,um=at.filter(g=>g.sv.size===1).length;
   const kc=(l,n,s,cor)=>'<div class="kc"><div class="l">'+l+'</div><div class="n"'+(cor?' style="color:'+cor+'"':'')+'>'+n+'</div><div class="s">'+s+'</div></div>';
-  let h='<div class="kpis">'+kc('Clientes ativos',at.length,brl(at.reduce((a,g)=>a+g.mens,0))+'/mês em mensalidades')+kc('Anúncio',cnt('A'),'clientes usando',SVC.A[1])+kc('Corporativo',cnt('C'),'clientes usando',SVC.C[1])+kc('LED',cnt('L'),'clientes com painel',SVC.L[1])+'</div>';
+  let h='<div class="kpis">'+kc('Clientes ativos',at.length,brl(at.reduce((a,g)=>a+g.mens,0))+'/mês em mensalidades')+kc('Anúncio',cnt('A'),'clientes usando',SVC.A[1])+kc('Corporativo',cnt('C'),'clientes usando',SVC.C[1])+kc('LED',cnt('L'),'compraram painel da ADled',SVC.L[1])+'</div>';
   h+='<div class="panel bopp"><b>'+um+' de '+at.length+'</b> clientes usam <b>só um serviço</b>. É aí que dá pra vender mais.'+(ex.length?' <span>Mais '+ex.length+' ex-clientes pra reativar.</span>':'')+'</div>';
   const F=[['todos','Todos ativos'],['soA','Só anúncio'],['soC','Só corporativo'],['soL','Só LED'],['dois','Usam 2+'],['ex','Ex-clientes']];
   const nichos={};at.forEach(g=>{const n=g.seg||'Sem nicho';nichos[n]=nichos[n]||{n,q:0,A:0,C:0,L:0};nichos[n].q++;g.sv.forEach(x=>nichos[n][x]++);});
@@ -1543,9 +1543,9 @@ function renderBase(){if(!cloaded){document.getElementById('content').innerHTML=
   h+=L.map(g=>{const c0=g.its[0];return '<div class="bs"><div class="bn3" onclick="openDetail(\''+c0.id+'\')"><b>'+esc(g.nome)+'</b><small>'+esc(g.cid||'')+(g.its.length>1?' · '+g.its.length+' cadastros':'')+(g.perm?' · permuta':'')+'</small></div>'
     +'<div class="bni">'+(g.seg?esc(g.seg):'<a onclick="openForm(\''+c0.id+'\')">definir</a>')+'</div><div class="bsvs">'+[...g.sv].sort().map(pill).join('')+'</div>'
     +'<div class="bds">'+(g.ds?'<b>'+tempoTxt(g.ds.ym)+'</b><small>desde '+ymLabel(g.ds.ym)+(g.ds.est?' · estimado':'')+'</small>':'<a onclick="openForm(\''+c0.id+'\')">definir</a>')+'</div>'
-    +'<div class="bm">'+(g.mens?brl(g.mens):'—')+'</div><div class="bof">'+(g.falta.length?g.falta.map(x=>'<span class="bsv o" style="--c:'+SVC[x][1]+'">'+SVC[x][0]+'</span>').join(''):'<small>já usa tudo ✓</small>')+'</div>'
+    +'<div class="bm">'+(g.mens?brl(g.mens):'—')+'</div><div class="bof">'+(g.falta.length?g.falta.map(x=>'<span class="bsv o" style="--c:'+SVC[x][1]+'">'+SVC[x][0]+'</span>').join(''):'<small>anúncio e corporativo ✓</small>')+'</div>'
     +'<div>'+(g.falta.length&&CANW?'<button class="b3 o" onclick="ofertar(\''+g.k+'\')">Oferecer</button>':'')+'</div></div>';}).join('')+'</div>';
-  h+='<div class="panel" style="margin-top:22px"><div class="ph">Nichos da base</div><div class="nch"><div class="nr h"><span>Nicho</span><span>Clientes</span><span>Anúncio</span><span>Corporativo</span><span>LED</span></div>'+NL.map(n=>'<div class="nr" onclick="bNicho=\''+esc(n.n).replace(/'/g,'')+'\';bFil=\'todos\';renderBase();window.scrollTo(0,0)"><span>'+esc(n.n)+'</span><span><b>'+n.q+'</b></span><span>'+n.A+'</span><span>'+n.C+'</span><span>'+n.L+'</span></div>').join('')+'</div><div class="note" style="margin-top:8px">Clica no nicho pra filtrar. Ex.: nicho com muito anúncio e zero corporativo é campanha pronta.</div></div>';
+  h+='<div class="panel" style="margin-top:22px"><div class="ph">Nichos da base</div><div class="nch"><div class="nr h"><span>Nicho</span><span>Clientes</span><span>Anúncio</span><span>Corporativo</span><span>LED</span></div>'+NL.map(n=>'<div class="nr" onclick="bNicho=\''+esc(n.n).replace(/'/g,'')+'\';bFil=\'todos\';renderBase();window.scrollTo(0,0)"><span>'+esc(n.n)+'</span><span><b>'+n.q+'</b></span><span>'+n.A+'</span><span>'+n.C+'</span><span>'+n.L+'</span></div>').join('')+'</div><div class="note" style="margin-top:8px">Clica no nicho pra filtrar. Ex.: nicho com muito anúncio e zero corporativo é campanha pronta. LED aparece só pra quem comprou painel da ADled.</div></div>';
   document.getElementById('content').innerHTML=h;}
 function ofertar(k){const g=baseGrupos().find(x=>x.k===k);if(!g)return;const uso=[...g.sv].map(x=>SVC[x][0].toLowerCase()).join(' e '),tem=g.ds?' há '+tempoTxt(g.ds.ym):'';
   const T={C:'Oi, '+g.nome+'! Aqui é o Davi da ADmídia. Vocês já estão com a gente'+tem+' no '+uso+', e eu queria te mostrar a TV corporativa: telas aí no estabelecimento com cardápio, promoções e avisos, trocados pelo celular, sem pendrive. Posso te mandar como funciona?',
